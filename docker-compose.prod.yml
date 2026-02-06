@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: qlin_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-qlin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-qlin}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-qlin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - qlin_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: qlin_redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - qlin_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qlin_backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-qlin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-qlin}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=${SECRET_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://yourdomain.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - qlin_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qlin_celery
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-qlin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-qlin}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=${SECRET_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - qlin_network
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: qlin_frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_YANDEX_MAPS_API_KEY=${NEXT_PUBLIC_YANDEX_MAPS_API_KEY}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - qlin_network
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  qlin_network:
+    driver: bridge
