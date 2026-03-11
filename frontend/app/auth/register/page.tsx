@@ -66,7 +66,10 @@ export default function RegisterPage() {
         router.push('/dashboard')
       }, 500)
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Ошибка регистрации'
+      const isNetworkError = err.message === 'Network Error' || err.code === 'ERR_NETWORK'
+      const errorMessage = isNetworkError
+        ? 'Не удалось подключиться к серверу. Запустите бэкенд (например: docker-compose up -d backend) или проверьте NEXT_PUBLIC_API_URL в .env.'
+        : (err.response?.data?.detail || err.message || 'Ошибка регистрации')
       console.error('Registration error:', err)
       const finalError = Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage
       setError(finalError)

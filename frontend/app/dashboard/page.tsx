@@ -20,6 +20,7 @@ import {
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatPrice } from '@/lib/utils'
+import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
 
 interface Order {
   id: string
@@ -30,38 +31,24 @@ interface Order {
   scheduled_at: string
 }
 
-interface Stats {
-  total_orders: number
-  completed_orders: number
-  pending_orders: number
-  total_spent: number
-}
-
 function DashboardContent() {
-  const { data: orders, isLoading: ordersLoading } = useQuery<Order[]>({
+  const { data: ordersData, isLoading: ordersLoading, error: ordersError } = useQuery<Order[]>({
     queryKey: ['orders'],
     queryFn: async () => {
       const response = await api.get('/orders')
-      return response.data
+      const data = response.data
+      return Array.isArray(data) ? data : []
     },
   })
 
-  const { data: stats, isLoading: statsLoading } = useQuery<Stats>({
-    queryKey: ['dashboard-stats'],
-    queryFn: async () => {
-      // Mock stats - replace with real API call
-      return {
-        total_orders: orders?.length || 0,
-        completed_orders: orders?.filter(o => o.status === 'completed').length || 0,
-        pending_orders: orders?.filter(o => ['pending', 'assigned', 'in_progress'].includes(o.status)).length || 0,
-        total_spent: orders?.reduce((sum, o) => sum + parseFloat(o.total_price || '0'), 0) || 0,
-      }
-    },
-    enabled: !!orders,
-  })
-
-  const recentOrders = orders?.slice(0, 5) || []
-  const completionRate = stats ? (stats.completed_orders / stats.total_orders) * 100 : 0
+  const orders = Array.isArray(ordersData) ? ordersData : []
+  const safeOrders = orders.filter((o): o is Order => o != null && typeof o === 'object')
+  const recentOrders = safeOrders.slice(0, 5)
+  const totalOrders = safeOrders.length
+  const completedOrders = safeOrders.filter(o => o.status === 'completed').length
+  const pendingOrders = safeOrders.filter(o => ['pending', 'assigned', 'in_progress'].includes(String(o.status))).length
+  const totalSpent = safeOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0)
+  const completionRate = totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -87,7 +74,7 @@ function DashboardContent() {
     return texts[status] || status
   }
 
-  if (ordersLoading || statsLoading) {
+  if (ordersLoading) {
     return (
       <div className="container mx-auto p-4 py-8">
         <Skeleton className="h-8 w-64 mb-8" />
@@ -97,6 +84,23 @@ function DashboardContent() {
           ))}
         </div>
         <Skeleton className="h-96" />
+      </div>
+    )
+  }
+
+  if (ordersError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Не удалось загрузить данные</h2>
+          <p className="text-gray-600 mb-4">
+            Обновите страницу или попробуйте позже. Если ошибка повторяется, проверьте, что бэкенд запущен.
+          </p>
+          <Button onClick={() => window.location.reload()} variant="outline" size="lg">
+            Обновить страницу
+          </Button>
+        </div>
       </div>
     )
   }
@@ -123,7 +127,7 @@ function DashboardContent() {
         <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up bg-white/80 backdrop-blur-sm">
           <CardHeader className="pb-3">
             <CardDescription className="text-gray-600 font-medium">Всего заказов</CardDescription>
-            <CardTitle className="text-4xl font-bold text-gradient">{stats?.total_orders || 0}</CardTitle>
+            <CardTitle className="text-4xl font-bold text-gradient">{totalOrders}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -136,7 +140,7 @@ function DashboardContent() {
         <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up bg-white/80 backdrop-blur-sm" style={{ animationDelay: '0.1s' }}>
           <CardHeader className="pb-3">
             <CardDescription className="text-gray-600 font-medium">Завершено</CardDescription>
-            <CardTitle className="text-4xl font-bold text-green-600">{stats?.completed_orders || 0}</CardTitle>
+            <CardTitle className="text-4xl font-bold text-green-600">{completedOrders}</CardTitle>
           </CardHeader>
           <CardContent>
             <Progress value={completionRate} variant="success" showLabel />
@@ -146,7 +150,7 @@ function DashboardContent() {
         <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up bg-white/80 backdrop-blur-sm" style={{ animationDelay: '0.2s' }}>
           <CardHeader className="pb-3">
             <CardDescription className="text-gray-600 font-medium">В работе</CardDescription>
-            <CardTitle className="text-4xl font-bold text-blue-600">{stats?.pending_orders || 0}</CardTitle>
+            <CardTitle className="text-4xl font-bold text-blue-600">{pendingOrders}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -159,7 +163,7 @@ function DashboardContent() {
         <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up gradient-primary text-white shadow-xl" style={{ animationDelay: '0.3s' }}>
           <CardHeader className="pb-3">
             <CardDescription className="text-white/90 font-medium">Потрачено</CardDescription>
-            <CardTitle className="text-4xl font-bold">{formatPrice(String(stats?.total_spent || 0))}</CardTitle>
+            <CardTitle className="text-4xl font-bold">{formatPrice(String(totalSpent))}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm text-white/80">
@@ -201,8 +205,8 @@ function DashboardContent() {
             <div className="divide-y">
               {recentOrders.map((order, index) => (
                 <Link
-                  key={order.id}
-                  href={`/orders/${order.id}`}
+                  key={order?.id ?? index}
+                  href={`/orders/${order?.id ?? ''}`}
                   className="block p-6 hover:bg-gray-50 transition-colors group animate-slide-up"
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
@@ -210,21 +214,21 @@ function DashboardContent() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
-                          Заказ #{order.order_number}
+                          Заказ #{order?.order_number ?? '—'}
                         </h3>
-                        <Badge className={getStatusColor(order.status)}>
-                          {getStatusText(order.status)}
+                        <Badge className={getStatusColor(String(order?.status ?? ''))}>
+                          {getStatusText(String(order?.status ?? ''))}
                         </Badge>
                       </div>
-                      <p className="text-gray-600 mb-1">{order.address}</p>
+                      <p className="text-gray-600 mb-1">{order?.address ?? '—'}</p>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(order.scheduled_at)}
+                          {formatDate(order?.scheduled_at)}
                         </div>
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-4 w-4" />
-                          {formatPrice(order.total_price)}
+                          {formatPrice(order?.total_price)}
                         </div>
                       </div>
                     </div>
@@ -244,7 +248,9 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
-      <DashboardContent />
+      <DashboardErrorBoundary>
+        <DashboardContent />
+      </DashboardErrorBoundary>
     </ProtectedRoute>
   )
 }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatDate, formatPrice } from '@/lib/utils'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ProtectedRoute } from '@/components/protected-route'
 
 interface Order {
@@ -20,7 +21,7 @@ interface Order {
 }
 
 function OrdersPageContent() {
-  const { data: orders, isLoading, error } = useQuery<Order[]>({
+  const { data: orders, isLoading, error, refetch } = useQuery<Order[]>({
     queryKey: ['orders'],
     queryFn: async () => {
       const response = await api.get('/orders')
@@ -29,11 +30,35 @@ function OrdersPageContent() {
   })
 
   if (isLoading) {
-    return <div className="container mx-auto p-4">Загрузка...</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="container mx-auto p-4 py-8 max-w-7xl">
+          <div className="text-center mb-12">
+            <Skeleton className="h-10 w-48 mx-auto mb-4" />
+            <Skeleton className="h-8 w-96 mx-auto mb-2" />
+            <Skeleton className="h-6 w-72 mx-auto" />
+          </div>
+          <div className="grid gap-6">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-48 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (error) {
-    return <div className="container mx-auto p-4">Ошибка загрузки заказов</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <p className="text-lg text-gray-600 mb-4">Не удалось загрузить заказы</p>
+          <Button onClick={() => refetch()} variant="outline" size="lg">
+            Повторить
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   const getStatusColor = (status: string) => {
@@ -58,6 +83,16 @@ function OrdersPageContent() {
       cancelled: 'Отменен',
     }
     return texts[status] || status
+  }
+
+  const getCleaningTypeLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      regular: 'Обычная уборка',
+      deep: 'Генеральная уборка',
+      move_in: 'Уборка после ремонта',
+      move_out: 'Уборка перед выездом',
+    }
+    return labels[value] || value
   }
 
   return (
@@ -143,7 +178,7 @@ function OrdersPageContent() {
                 <div className="grid md:grid-cols-3 gap-6">
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                     <p className="text-xs text-gray-600 mb-1 font-medium uppercase tracking-wide">Тип уборки</p>
-                    <p className="font-bold text-base">{order.cleaning_type}</p>
+                    <p className="font-bold text-base">{getCleaningTypeLabel(order.cleaning_type)}</p>
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg border border-green-100">
                     <p className="text-xs text-gray-600 mb-1 font-medium uppercase tracking-wide">Дата и время</p>

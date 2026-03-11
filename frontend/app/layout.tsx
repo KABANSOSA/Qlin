@@ -9,8 +9,15 @@ import { ToastProvider } from '@/components/providers/toast-provider'
 const inter = Inter({ subsets: ['latin', 'cyrillic'] })
 
 export const metadata: Metadata = {
-  title: 'QLIN - Сервис уборки',
-  description: 'Закажи уборку онлайн, а остальное мы возьмём на себя',
+  title: {
+    default: 'QLIN — Сервис уборки',
+    template: '%s | QLIN',
+  },
+  description: 'Закажи уборку онлайн за 2 минуты. Профессиональная уборка квартир, прозрачные цены, проверенные уборщики. Москва, Южно-Сахалинск, Хабаровск.',
+  openGraph: {
+    type: 'website',
+    locale: 'ru_RU',
+  },
 }
 
 export default function RootLayout({
@@ -23,9 +30,15 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <ToastProvider>
+            <a
+              href="#main-content"
+              className="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:p-4 focus:w-auto focus:h-auto focus:m-0 focus:overflow-visible focus:[clip:auto] focus:bg-blue-600 focus:text-white focus:rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
+            >
+              Перейти к основному содержимому
+            </a>
             <div className="min-h-screen flex flex-col">
               <Header />
-              <main className="flex-1">
+              <main id="main-content" className="flex-1" tabIndex={-1}>
                 {children}
               </main>
               <Footer />

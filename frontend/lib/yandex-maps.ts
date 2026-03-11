@@ -65,7 +65,7 @@ export const geocodeAddress = async (query: string, limit: number = 5): Promise<
         })
         resolve(suggestions)
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.error('Geocode error:', error)
         reject(error)
       })
@@ -109,7 +109,7 @@ export const suggestAddress = async (query: string, limit: number = 5): Promise<
           reject(new Error('No suggestions found'))
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.error('Geosuggest API error:', error)
         // Fallback to geocode if available
         if (window.ymaps) {
@@ -132,6 +132,6 @@ export const reverseGeocode = async (coordinates: Coordinates): Promise<string> 
         const firstGeoObject = res.geoObjects.get(0)
         resolve(firstGeoObject.getAddressLine())
       })
-      .catch(reject)
+      .catch((error: unknown) => reject(error))
   })
 }

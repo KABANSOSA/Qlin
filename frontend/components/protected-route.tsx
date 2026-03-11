@@ -1,20 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (!token) {
-      router.push('/auth/login')
+      const returnUrl = pathname ? `${pathname}` : '/dashboard'
+      router.push(`/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`)
     } else {
       setIsAuthenticated(true)
     }
-  }, [router])
+  }, [router, pathname])
 
   if (isAuthenticated === null) {
     return (

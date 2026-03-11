@@ -5,8 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: string | Date): string {
-  return new Date(date).toLocaleDateString('ru-RU', {
+export function formatDate(date: string | Date | null | undefined): string {
+  if (date == null) return '—'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('ru-RU', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -15,9 +18,12 @@ export function formatDate(date: string | Date): string {
   })
 }
 
-export function formatPrice(price: number | string): string {
+export function formatPrice(price: number | string | null | undefined): string {
+  if (price == null) return '0 ₽'
+  const n = Number(price)
+  if (Number.isNaN(n)) return '0 ₽'
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
-  }).format(Number(price))
+  }).format(n)
 }

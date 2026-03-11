@@ -5,15 +5,27 @@ import { useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatPrice } from '@/lib/utils'
 import Link from 'next/link'
 import { ProtectedRoute } from '@/components/protected-route'
+
+const CLEANING_TYPE_LABELS: Record<string, string> = {
+  regular: 'Обычная уборка',
+  deep: 'Генеральная уборка',
+  move_in: 'Уборка после ремонта',
+  move_out: 'Уборка перед выездом',
+}
+
+function getCleaningTypeLabel(value: string) {
+  return CLEANING_TYPE_LABELS[value] || value
+}
 
 function OrderDetailPageContent() {
   const params = useParams()
   const orderId = params.id as string
 
-  const { data: order, isLoading, error } = useQuery({
+  const { data: order, isLoading, error, refetch } = useQuery({
     queryKey: ['order', orderId],
     queryFn: async () => {
       const response = await api.get(`/orders/${orderId}`)
@@ -23,10 +35,11 @@ function OrderDetailPageContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="container mx-auto p-4 py-8 max-w-5xl">
+          <Skeleton className="h-10 w-40 mb-6" />
+          <Skeleton className="h-32 w-full rounded-2xl mb-8" />
+          <Skeleton className="h-96 w-full rounded-xl" />
         </div>
       </div>
     )
@@ -44,12 +57,17 @@ function OrderDetailPageContent() {
                 </svg>
               </div>
               <h3 className="text-2xl font-bold mb-2">Заказ не найден</h3>
-              <p className="text-gray-500 mb-6">Заказ с таким ID не существует или был удален</p>
-              <Link href="/orders">
-                <Button className="gradient-primary text-white hover:shadow-xl transition-all">
-                  Вернуться к заказам
+              <p className="text-gray-500 mb-6">Заказ с таким ID не существует или не удалось загрузить данные</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button onClick={() => refetch()} variant="outline" size="lg">
+                  Повторить
                 </Button>
-              </Link>
+                <Link href="/orders">
+                  <Button className="gradient-primary text-white hover:shadow-xl transition-all">
+                    К списку заказов
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -151,7 +169,7 @@ function OrderDetailPageContent() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between items-center py-2 border-b border-blue-100">
                     <span className="text-gray-600 font-medium">Тип уборки:</span>
-                    <span className="font-semibold">{order.cleaning_type}</span>
+                    <span className="font-semibold">{getCleaningTypeLabel(order.cleaning_type)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-blue-100">
                     <span className="text-gray-600 font-medium">Комнат:</span>

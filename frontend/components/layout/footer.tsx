@@ -35,19 +35,23 @@ export function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Контакты</h4>
             <ul className="space-y-2 text-gray-400">
-              <li>Телефон: +7 (999) 123-45-67</li>
-              <li>Email: info@qlin.ru</li>
               <li>
-                <Link href="https://t.me/CleaningRu_bot" target="_blank" className="hover:text-white">
+                <a href="tel:+79621129483" className="hover:text-white transition-colors">8 (962) 112-94-83</a>
+              </li>
+              <li>
+                <a href="mailto:info@qlin.ru" className="hover:text-white transition-colors">info@qlin.ru</a>
+              </li>
+              <li>
+                <Link href="https://t.me/CleaningRu_bot" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Telegram бот
                 </Link>
               </li>
             </ul>
           </div>
         </div>
-        
+
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-          <p>&copy; 2024 QLIN. Все права защищены.</p>
+          <p>&copy; {new Date().getFullYear()} QLIN. Все права защищены.</p>
         </div>
       </div>
     </footer>

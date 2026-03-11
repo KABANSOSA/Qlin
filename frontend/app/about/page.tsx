@@ -48,8 +48,8 @@ export default function AboutPage() {
           
           {/* Story Section */}
           <div className="space-y-8 mb-16">
-            <Card className="border-2 shadow-xl bg-white/95 backdrop-blur-sm animate-fade-in overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/50"></div>
+            <Card className="relative border-2 shadow-xl bg-white/95 backdrop-blur-sm animate-fade-in overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/50" aria-hidden />
               <CardContent className="relative p-8 md:p-12">
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center flex-shrink-0">
@@ -78,8 +78,8 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 shadow-xl bg-white/95 backdrop-blur-sm animate-fade-in overflow-hidden" style={{ animationDelay: '0.1s' }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-pink-50/50"></div>
+            <Card className="relative border-2 shadow-xl bg-white/95 backdrop-blur-sm animate-fade-in overflow-hidden" style={{ animationDelay: '0.1s' }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-pink-50/50" aria-hidden />
               <CardContent className="relative p-8 md:p-12">
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 gradient-secondary rounded-xl flex items-center justify-center flex-shrink-0">
@@ -121,8 +121,8 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 shadow-xl bg-white/95 backdrop-blur-sm animate-fade-in overflow-hidden" style={{ animationDelay: '0.2s' }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-emerald-50/50"></div>
+            <Card className="relative border-2 shadow-xl bg-white/95 backdrop-blur-sm animate-fade-in overflow-hidden" style={{ animationDelay: '0.2s' }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-emerald-50/50" aria-hidden />
               <CardContent className="relative p-8 md:p-12">
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 gradient-success rounded-xl flex items-center justify-center flex-shrink-0">
@@ -145,7 +145,7 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 shadow-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white animate-fade-in overflow-hidden" style={{ animationDelay: '0.3s' }}>
+            <Card className="relative border-2 shadow-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white animate-fade-in overflow-hidden" style={{ animationDelay: '0.3s' }}>
               <CardContent className="relative p-8 md:p-12">
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -20,8 +20,10 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard'
   const { success, error: showError } = useToast()
   const [error, setError] = useState<string | null>(null)
   const {
@@ -43,10 +45,14 @@ export default function LoginPage() {
 
       success('Вход выполнен успешно!', { title: 'Добро пожаловать' })
       setTimeout(() => {
-        window.location.href = '/dashboard'
+        const url = returnUrl.startsWith('/') ? returnUrl : `/${returnUrl}`
+        window.location.href = url
       }, 500)
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || 'Ошибка входа'
+      const isNetworkError = err.message === 'Network Error' || err.code === 'ERR_NETWORK'
+      const errorMessage = isNetworkError
+        ? 'Не удалось подключиться к серверу. Запустите бэкенд (docker-compose up -d backend) или проверьте NEXT_PUBLIC_API_URL в .env.'
+        : (err.response?.data?.detail || 'Ошибка входа')
       setError(errorMessage)
       showError(errorMessage, { title: 'Ошибка входа' })
     }
@@ -131,6 +137,11 @@ export default function LoginPage() {
                     {errors.password.message}
                   </p>
                 )}
+                <div className="text-right mt-1">
+                  <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    Забыли пароль?
+                  </Link>
+                </div>
               </div>
 
               {error && (
@@ -176,5 +187,24 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function LoginPageFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center p-4">
+      <div className="text-center text-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-2 border-white border-t-transparent mx-auto mb-4" />
+        <p>Загрузка...</p>
+      </div>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
   )
 }

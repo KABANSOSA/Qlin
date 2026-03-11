@@ -22,7 +22,7 @@ const orderSchema = z.object({
   cleaning_type: z.string().min(1, 'Выберите тип уборки'),
   rooms_count: z.number().min(1).max(10),
   bathrooms_count: z.number().min(0).max(5),
-  area_sqm: z.number().optional(),
+  area_sqm: z.union([z.string(), z.number()]).optional().transform((v) => (v === '' || v == null ? undefined : Number(v))),
   scheduled_at: z.string(),
   special_instructions: z.string().optional(),
 })
@@ -57,15 +57,27 @@ function NewOrderPageContent() {
   const cleaningType = watch('cleaning_type')
   const roomsCount = watch('rooms_count')
   const bathroomsCount = watch('bathrooms_count')
+  const areaSqmRaw = watch('area_sqm') as string | number | undefined
+  const areaSqmNum =
+    areaSqmRaw != null && areaSqmRaw !== '' && !Number.isNaN(Number(areaSqmRaw))
+      ? Number(areaSqmRaw)
+      : undefined
 
-  // Calculate price (simplified - in production, call API)
+  // Расчёт по тарифам со страницы «Цены»: база 3 300 ₽ до 50 м², +30 ₽/м² свыше 50
   const calculatePrice = () => {
-    const basePrice = 2000
-    const roomPrice = 500
-    const bathroomPrice = 300
-    const calculated = basePrice + (roomsCount - 1) * roomPrice + bathroomsCount * bathroomPrice
-    setPrice(calculated)
+    const BASE_PRICE = 3300
+    const AREA_THRESHOLD = 50
+    const PRICE_PER_EXTRA_SQM = 30
+    const area = (areaSqmNum != null && areaSqmNum > 0) ? areaSqmNum : (roomsCount * 25) // примерная площадь по комнатам, если не указана
+    const calculated = area <= AREA_THRESHOLD
+      ? BASE_PRICE
+      : BASE_PRICE + (area - AREA_THRESHOLD) * PRICE_PER_EXTRA_SQM
+    setPrice(Math.round(calculated))
   }
+
+  useEffect(() => {
+    calculatePrice()
+  }, [roomsCount, areaSqmNum])
 
   const onSubmit = async (data: OrderForm) => {
     try {
@@ -314,10 +326,6 @@ function NewOrderPageContent() {
                   max="10"
                   className="h-12 text-base border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200"
                   {...register('rooms_count', { valueAsNumber: true })}
-                  onChange={(e) => {
-                    register('rooms_count').onChange(e)
-                    calculatePrice()
-                  }}
                 />
                 {errors.rooms_count && (
                   <p className="text-xs text-destructive mt-1.5">
@@ -340,10 +348,6 @@ function NewOrderPageContent() {
                   max="5"
                   className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
                   {...register('bathrooms_count', { valueAsNumber: true })}
-                  onChange={(e) => {
-                    register('bathrooms_count').onChange(e)
-                    calculatePrice()
-                  }}
                 />
                 {errors.bathrooms_count && (
                   <p className="text-xs text-destructive mt-1.5">
@@ -351,6 +355,24 @@ function NewOrderPageContent() {
                   </p>
                 )}
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="area_sqm" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
+                <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+                Площадь, м² <span className="text-gray-400 font-normal">(необязательно, для точного расчёта)</span>
+              </label>
+              <Input
+                id="area_sqm"
+                type="number"
+                min={1}
+                max={500}
+                placeholder="Например 65"
+                className="h-12 text-base border-2 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 transition-all duration-200"
+                {...register('area_sqm')}
+              />
             </div>
 
             {price && (
@@ -394,20 +416,21 @@ function NewOrderPageContent() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6 p-6 relative z-10">
-            <div>
-              <label htmlFor="scheduled_at" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Дата и время *
-              </label>
-              <div className="relative">
-                <Input
-                  id="scheduled_at"
-                  type="datetime-local"
-                  className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
-                  {...register('scheduled_at')}
-                />
+              <div>
+                <label htmlFor="scheduled_at" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
+                  <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Дата и время *
+                </label>
+                <div className="relative">
+                  <Input
+                    id="scheduled_at"
+                    type="datetime-local"
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                    {...register('scheduled_at')}
+                  />
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
