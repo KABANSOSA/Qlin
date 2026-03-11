@@ -4,6 +4,16 @@
 
 set -e
 
+# Определяем команду docker-compose (новый или старый синтаксис)
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+elif command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    echo "❌ Docker Compose не найден! Установите Docker."
+    exit 1
+fi
+
 echo "🚀 Начинаем деплой QLIN..."
 
 # Проверка наличия .env
@@ -14,15 +24,15 @@ fi
 
 # Остановка старых контейнеров
 echo "📦 Останавливаем старые контейнеры..."
-docker-compose -f docker-compose.prod.yml down
+$DOCKER_COMPOSE -f docker-compose.prod.yml down
 
 # Сборка образов
 echo "🔨 Собираем Docker образы..."
-docker-compose -f docker-compose.prod.yml build --no-cache
+$DOCKER_COMPOSE -f docker-compose.prod.yml build --no-cache --parallel
 
 # Запуск контейнеров
 echo "▶️  Запускаем контейнеры..."
-docker-compose -f docker-compose.prod.yml up -d
+$DOCKER_COMPOSE -f docker-compose.prod.yml up -d
 
 # Ожидание готовности БД
 echo "⏳ Ожидаем готовности базы данных..."
@@ -30,11 +40,11 @@ sleep 10
 
 # Применение миграций
 echo "📊 Применяем миграции базы данных..."
-docker-compose -f docker-compose.prod.yml exec -T backend alembic upgrade head || echo "⚠️  Миграции не применены (возможно, БД еще не готова)"
+$DOCKER_COMPOSE -f docker-compose.prod.yml exec -T backend alembic upgrade head || echo "⚠️  Миграции не применены (возможно, БД еще не готова)"
 
 # Проверка статуса
 echo "✅ Проверяем статус контейнеров..."
-docker-compose -f docker-compose.prod.yml ps
+$DOCKER_COMPOSE -f docker-compose.prod.yml ps
 
 echo "🎉 Деплой завершен!"
-echo "📝 Проверьте логи: docker-compose -f docker-compose.prod.yml logs -f"
+echo "📝 Проверьте логи: $DOCKER_COMPOSE -f docker-compose.prod.yml logs -f"
