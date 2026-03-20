@@ -12,27 +12,22 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ProtectedRoute } from '@/components/protected-route'
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Calendar, 
-  Edit, 
-  Save, 
-  Settings, 
-  TrendingUp, 
-  CheckCircle, 
+import {
+  User,
+  Mail,
+  Phone,
+  Calendar,
+  Edit,
+  Save,
+  CheckCircle,
   Clock,
   DollarSign,
   Package,
-  Award,
-  Sparkles,
   ArrowRight,
   Shield,
-  Bell
 } from 'lucide-react'
 import Link from 'next/link'
-import { formatDate, formatPrice } from '@/lib/utils'
+import { formatPrice } from '@/lib/utils'
 
 const profileSchema = z.object({
   email: z.string().email('Неверный формат email').optional().or(z.literal('')),
@@ -47,7 +42,7 @@ function ProfilePageContent() {
   const router = useRouter()
   const [success, setSuccess] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  
+
   const { data: user, isLoading, refetch } = useQuery({
     queryKey: ['user', 'me'],
     queryFn: async () => {
@@ -71,12 +66,14 @@ function ProfilePageContent() {
     formState: { errors, isSubmitting },
   } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
-    defaultValues: user ? {
-      email: user.email || '',
-      first_name: user.first_name || '',
-      last_name: user.last_name || '',
-      phone: user.phone || '',
-    } : undefined,
+    defaultValues: user
+      ? {
+          email: user.email || '',
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          phone: user.phone || '',
+        }
+      : undefined,
   })
 
   useEffect(() => {
@@ -102,12 +99,11 @@ function ProfilePageContent() {
     }
   }
 
-  // Calculate stats
   const stats = {
     total_orders: orders?.length || 0,
-    completed_orders: orders?.filter((o: any) => o.status === 'completed').length || 0,
-    total_spent: orders?.reduce((sum: number, o: any) => sum + parseFloat(o.total_price || '0'), 0) || 0,
-    active_orders: orders?.filter((o: any) => ['pending', 'assigned', 'in_progress'].includes(o.status)).length || 0,
+    completed_orders: orders?.filter((o: { status: string }) => o.status === 'completed').length || 0,
+    total_spent: orders?.reduce((sum: number, o: { total_price?: string }) => sum + parseFloat(o.total_price || '0'), 0) || 0,
+    active_orders: orders?.filter((o: { status: string }) => ['pending', 'assigned', 'in_progress'].includes(o.status)).length || 0,
   }
 
   const completionRate = stats.total_orders > 0 ? (stats.completed_orders / stats.total_orders) * 100 : 0
@@ -115,10 +111,10 @@ function ProfilePageContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка профиля...</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="mt-4 text-sm text-muted-foreground">Загрузка профиля…</p>
         </div>
       </div>
     )
@@ -129,345 +125,240 @@ function ProfilePageContent() {
     return null
   }
 
-  const displayName = user.first_name && user.last_name 
-    ? `${user.first_name} ${user.last_name}` 
-    : user.first_name || user.phone || 'Пользователь'
+  const displayName =
+    user.first_name && user.last_name
+      ? `${user.first_name} ${user.last_name}`
+      : user.first_name || user.phone || 'Пользователь'
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white">
-        <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
-        
-        <div className="relative container mx-auto px-4 py-16 md:py-24">
-          <div className="max-w-5xl mx-auto">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-              {/* Avatar */}
-              <div className="relative">
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/30 flex items-center justify-center text-5xl md:text-6xl font-bold shadow-2xl">
-                  {user.first_name ? user.first_name[0].toUpperCase() : user.phone?.[0] || 'U'}
-                </div>
-                <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-green-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
-                  <CheckCircle className="w-6 h-6 text-white" />
-                </div>
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border/60 bg-hero-mesh">
+        <div className="container mx-auto max-w-6xl px-4 py-12 md:py-16">
+          <div className="flex flex-col gap-8 md:flex-row md:items-center">
+            <div className="relative mx-auto md:mx-0">
+              <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-border/80 bg-card text-3xl font-semibold shadow-elevated md:h-32 md:w-32 md:text-4xl">
+                {user.first_name ? user.first_name[0].toUpperCase() : user.phone?.[0] || 'U'}
               </div>
-
-              {/* User Info */}
-              <div className="flex-1 text-center md:text-left">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-4">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="text-sm font-medium">Личный кабинет</span>
-                </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-2">
-                  {displayName}
-                </h1>
-                <p className="text-xl text-blue-100 mb-4">
-                  {user.email || user.phone}
-                </p>
-                <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-                  <Badge className="bg-white/20 text-white border-white/30 px-4 py-1.5">
-                    <Award className="w-4 h-4 mr-2" />
-                    {stats.completed_orders} завершенных заказов
-                  </Badge>
-                  <Badge className="bg-white/20 text-white border-white/30 px-4 py-1.5">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    С {memberSince}
-                  </Badge>
-                </div>
+              <div className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-emerald-600 text-primary-foreground">
+                <CheckCircle className="h-4 w-4" aria-hidden />
+              </div>
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Профиль</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{displayName}</h1>
+              <p className="mt-2 text-muted-foreground">{user.email || user.phone}</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
+                <Badge variant="secondary" className="gap-1 font-normal">
+                  <Package className="h-3.5 w-3.5" aria-hidden />
+                  {stats.completed_orders} завершено
+                </Badge>
+                <Badge variant="outline" className="gap-1 font-normal">
+                  <Calendar className="h-3.5 w-3.5" aria-hidden />
+                  с {memberSince}
+                </Badge>
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Main Content */}
-      <section className="container mx-auto px-4 py-12 md:py-16 -mt-10 relative z-10">
-        <div className="max-w-6xl mx-auto">
-          
-          {/* Stats Cards */}
-          <div className="grid md:grid-cols-4 gap-6 mb-8">
-            <Card className="border-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-fade-in bg-white">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-gray-600 font-medium">Всего заказов</CardDescription>
-                  <Package className="w-5 h-5 text-blue-600" />
+      <div className="container mx-auto max-w-6xl px-4 py-10">
+        <div className="mb-8 grid gap-4 md:grid-cols-4">
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>Всего</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">{stats.total_orders}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground">Заказов в аккаунте</CardContent>
+          </Card>
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>Завершено</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                {stats.completed_orders}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${completionRate}%` }} />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{completionRate.toFixed(0)}% от всех</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>Активные</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">{stats.active_orders}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" aria-hidden />
+              В работе / ожидают
+            </CardContent>
+          </Card>
+          <Card className="border-primary/20 bg-primary text-primary-foreground shadow-elevated">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-primary-foreground/85">Потрачено</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">{formatPrice(String(stats.total_spent))}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-xs text-primary-foreground/85">
+              <DollarSign className="h-3.5 w-3.5" aria-hidden />
+              По суммам заказов
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <Card className="border-border/70">
+              <CardHeader className="flex flex-col gap-4 border-b border-border/60 bg-surface-muted/30 p-6 sm:flex-row sm:items-center sm:justify-between md:p-8">
+                <div>
+                  <CardTitle className="text-xl">Личные данные</CardTitle>
+                  <CardDescription>Имя и почта (телефон фиксирован)</CardDescription>
                 </div>
-                <CardTitle className="text-3xl font-bold text-blue-600">{stats.total_orders}</CardTitle>
+                {!isEditing && (
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => setIsEditing(true)}>
+                    <Edit className="h-4 w-4" aria-hidden />
+                    Изменить
+                  </Button>
+                )}
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <TrendingUp className="h-4 w-4 text-green-500" />
-                  <span>Все время</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-fade-in bg-white" style={{ animationDelay: '0.1s' }}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-gray-600 font-medium">Завершено</CardDescription>
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                </div>
-                <CardTitle className="text-3xl font-bold text-green-600">{stats.completed_orders}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-green-600 h-2 rounded-full transition-all duration-500" 
-                    style={{ width: `${completionRate}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">{completionRate.toFixed(0)}% успешных</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-fade-in bg-white" style={{ animationDelay: '0.2s' }}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-gray-600 font-medium">В работе</CardDescription>
-                  <Clock className="w-5 h-5 text-purple-600" />
-                </div>
-                <CardTitle className="text-3xl font-bold text-purple-600">{stats.active_orders}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="h-4 w-4 text-purple-500" />
-                  <span>Активные</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-fade-in gradient-primary text-white" style={{ animationDelay: '0.3s' }}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-white/90 font-medium">Потрачено</CardDescription>
-                  <DollarSign className="w-5 h-5" />
-                </div>
-                <CardTitle className="text-3xl font-bold">{formatPrice(String(stats.total_spent))}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-white/80">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>Всего</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Profile Form */}
-            <div className="md:col-span-2">
-              <Card className="border-2 shadow-xl bg-white animate-fade-in">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-                  <div className="flex items-center justify-between">
+              <CardContent className="p-6 md:p-8">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <CardTitle className="text-2xl font-bold text-gray-900 mb-1">Личная информация</CardTitle>
-                      <CardDescription>Управляйте своими данными</CardDescription>
+                      <label htmlFor="first_name" className="mb-2 flex items-center gap-2 text-sm font-medium">
+                        <User className="h-4 w-4 text-muted-foreground" aria-hidden />
+                        Имя
+                      </label>
+                      <Input id="first_name" {...register('first_name')} disabled={!isEditing} />
                     </div>
-                    {!isEditing && (
+                    <div>
+                      <label htmlFor="last_name" className="mb-2 flex items-center gap-2 text-sm font-medium">
+                        <User className="h-4 w-4 text-muted-foreground" aria-hidden />
+                        Фамилия
+                      </label>
+                      <Input id="last_name" {...register('last_name')} disabled={!isEditing} />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="phone" className="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <Phone className="h-4 w-4 text-muted-foreground" aria-hidden />
+                      Телефон
+                    </label>
+                    <Input id="phone" type="tel" {...register('phone')} disabled className="bg-muted/50" />
+                    <p className="mt-1 text-xs text-muted-foreground">Изменение телефона через поддержку</p>
+                  </div>
+                  <div>
+                    <label htmlFor="email" className="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
+                      Email
+                    </label>
+                    <Input id="email" type="email" {...register('email')} disabled={!isEditing} />
+                    {errors.email && <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>}
+                  </div>
+
+                  <div className="rounded-xl border border-border/70 bg-surface-muted/40 p-4 text-sm">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <span className="text-muted-foreground">Роль</span>
+                        <Badge className="ml-2" variant="secondary">
+                          {user.role === 'customer' ? 'Клиент' : user.role}
+                        </Badge>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Регистрация</span>
+                        <p className="mt-1 font-medium">
+                          {new Date(user.created_at).toLocaleDateString('ru-RU', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {success && (
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+                      <CheckCircle className="h-4 w-4 shrink-0" aria-hidden />
+                      Сохранено
+                    </div>
+                  )}
+
+                  {isEditing && (
+                    <div className="flex flex-col gap-3 border-t border-border/60 pt-6 sm:flex-row">
+                      <Button type="submit" disabled={isSubmitting} className="gap-2 sm:flex-1">
+                        {isSubmitting ? (
+                          'Сохранение…'
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4" aria-hidden />
+                            Сохранить
+                          </>
+                        )}
+                      </Button>
                       <Button
+                        type="button"
                         variant="outline"
-                        size="sm"
-                        onClick={() => setIsEditing(true)}
-                        className="gap-2"
+                        onClick={() => {
+                          setIsEditing(false)
+                          reset()
+                        }}
                       >
-                        <Edit className="w-4 h-4" />
-                        Редактировать
+                        Отмена
                       </Button>
-                    )}
+                    </div>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border-border/70">
+              <CardHeader className="border-b border-border/60 p-6">
+                <CardTitle className="text-lg">Действия</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 p-4">
+                <Link href="/orders/new" className="block">
+                  <Button className="w-full justify-between gap-2" variant="default">
+                    Новый заказ
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </Button>
+                </Link>
+                <Link href="/orders" className="block">
+                  <Button className="w-full justify-between gap-2" variant="outline">
+                    Заказы
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </Button>
+                </Link>
+                <Link href="/dashboard" className="block">
+                  <Button className="w-full justify-between gap-2" variant="outline">
+                    Дашборд
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70">
+              <CardHeader className="border-b border-border/60 p-6">
+                <CardTitle className="text-lg">Безопасность</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="flex gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Shield className="h-5 w-5" aria-hidden />
                   </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div>
-                        <label htmlFor="first_name" className="block text-sm font-semibold mb-2 text-gray-700">
-                          <User className="w-4 h-4 inline mr-2" />
-                          Имя
-                        </label>
-                        <Input
-                          id="first_name"
-                          {...register('first_name')}
-                          disabled={!isEditing}
-                          className="h-11"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="last_name" className="block text-sm font-semibold mb-2 text-gray-700">
-                          <User className="w-4 h-4 inline mr-2" />
-                          Фамилия
-                        </label>
-                        <Input
-                          id="last_name"
-                          {...register('last_name')}
-                          disabled={!isEditing}
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="phone" className="block text-sm font-semibold mb-2 text-gray-700">
-                        <Phone className="w-4 h-4 inline mr-2" />
-                        Номер телефона
-                      </label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        {...register('phone')}
-                        disabled
-                        className="h-11 bg-gray-50"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Номер телефона нельзя изменить</p>
-                    </div>
-
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-semibold mb-2 text-gray-700">
-                        <Mail className="w-4 h-4 inline mr-2" />
-                        Email
-                      </label>
-                      <Input
-                        id="email"
-                        type="email"
-                        {...register('email')}
-                        disabled={!isEditing}
-                        className="h-11"
-                      />
-                      {errors.email && (
-                        <p className="text-sm text-red-600 mt-1">{errors.email.message}</p>
-                      )}
-                    </div>
-
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="grid md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="font-semibold text-gray-700">Роль:</span>
-                          <Badge className="ml-2 bg-blue-100 text-blue-800">
-                            {user.role === 'customer' ? 'Клиент' : user.role}
-                          </Badge>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-gray-700">Дата регистрации:</span>
-                          <span className="ml-2 text-gray-600">
-                            {new Date(user.created_at).toLocaleDateString('ru-RU', { 
-                              year: 'numeric', 
-                              month: 'long', 
-                              day: 'numeric' 
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {success && (
-                      <div className="bg-green-50 border-2 border-green-200 text-green-800 p-4 rounded-lg flex items-center gap-2 animate-slide-up">
-                        <CheckCircle className="w-5 h-5" />
-                        <span className="font-semibold">Профиль успешно обновлен!</span>
-                      </div>
-                    )}
-
-                    {isEditing && (
-                      <div className="flex gap-3 pt-4 border-t">
-                        <Button 
-                          type="submit" 
-                          disabled={isSubmitting}
-                          className="flex-1 gradient-primary text-white hover:shadow-xl transition-all h-11 font-semibold"
-                        >
-                          {isSubmitting ? (
-                            <span className="flex items-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Сохранение...
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-2">
-                              <Save className="w-4 h-4" />
-                              Сохранить изменения
-                            </span>
-                          )}
-                        </Button>
-                        <Button 
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setIsEditing(false)
-                            reset()
-                          }}
-                          className="h-11"
-                        >
-                          Отмена
-                        </Button>
-                      </div>
-                    )}
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="space-y-6">
-              <Card className="border-2 shadow-xl bg-white animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
-                  <CardTitle className="text-xl font-bold text-gray-900">Быстрые действия</CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-3">
-                    <Link href="/orders/new">
-                      <Button className="w-full justify-start gradient-primary text-white hover:shadow-lg transition-all h-11">
-                        <Package className="w-4 h-4 mr-2" />
-                        Новый заказ
-                        <ArrowRight className="w-4 h-4 ml-auto" />
-                      </Button>
-                    </Link>
-                    <Link href="/orders">
-                      <Button variant="outline" className="w-full justify-start border-2 hover:bg-gray-50 h-11">
-                        <Clock className="w-4 h-4 mr-2" />
-                        Мои заказы
-                        <ArrowRight className="w-4 h-4 ml-auto" />
-                      </Button>
-                    </Link>
-                    <Link href="/dashboard">
-                      <Button variant="outline" className="w-full justify-start border-2 hover:bg-gray-50 h-11">
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Статистика
-                        <ArrowRight className="w-4 h-4 ml-auto" />
-                      </Button>
-                    </Link>
+                  <div>
+                    <p className="text-sm font-semibold">Данные аккаунта</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Используйте уникальный пароль и не передавайте коды входа.</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-2 shadow-xl bg-white animate-fade-in" style={{ animationDelay: '0.3s' }}>
-                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
-                  <CardTitle className="text-xl font-bold text-gray-900">Безопасность</CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">Аккаунт защищен</p>
-                        <p className="text-sm text-gray-600">Все данные в безопасности</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Bell className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">Уведомления</p>
-                        <p className="text-sm text-gray-600">Включены</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }

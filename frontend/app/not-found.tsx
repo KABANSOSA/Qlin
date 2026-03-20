@@ -4,20 +4,18 @@ import { Home, Search } from 'lucide-react'
 
 export default function NotFound() {
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center px-4">
-      <div className="text-center max-w-md">
-        <p className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4">
-          404
-        </p>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
+      <div className="max-w-md text-center">
+        <p className="mb-4 text-6xl font-semibold tabular-nums text-primary">404</p>
+        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
           Страница не найдена
         </h1>
-        <p className="text-gray-600 mb-8">
+        <p className="mb-8 text-muted-foreground">
           Такой страницы нет или она была удалена. Вернитесь на главную или оформите заказ на уборку.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex flex-col justify-center gap-4 sm:flex-row">
           <Link href="/">
-            <Button size="lg" className="w-full sm:w-auto gradient-primary text-white gap-2">
+            <Button size="lg" className="w-full gap-2 sm:w-auto">
               <Home className="h-5 w-5" />
               На главную
             </Button>

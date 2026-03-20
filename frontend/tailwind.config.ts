@@ -17,6 +17,17 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['3.5rem', { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '600' }],
+        'display-sm': ['2.5rem', { lineHeight: '1.1', letterSpacing: '-0.025em', fontWeight: '600' }],
+      },
+      boxShadow: {
+        elevated: '0 1px 2px hsl(222 22% 12% / 0.04), 0 8px 24px hsl(222 22% 12% / 0.06)',
+        'elevated-lg': '0 2px 4px hsl(222 22% 12% / 0.04), 0 20px 40px hsl(222 22% 12% / 0.08)',
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -50,6 +61,10 @@ const config: Config = {
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
+        },
+        surface: {
+          DEFAULT: 'hsl(var(--surface))',
+          muted: 'hsl(var(--surface-muted))',
         },
       },
       borderRadius: {

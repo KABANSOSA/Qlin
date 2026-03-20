@@ -6,7 +6,11 @@ import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
 import { ToastProvider } from '@/components/providers/toast-provider'
 
-const inter = Inter({ subsets: ['latin', 'cyrillic'] })
+const inter = Inter({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: {
@@ -26,13 +30,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ru">
-      <body className={inter.className}>
+    <html lang="ru" className={inter.variable}>
+      <body className={`${inter.className} min-h-screen bg-background`}>
         <Providers>
           <ToastProvider>
             <a
               href="#main-content"
-              className="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:p-4 focus:w-auto focus:h-auto focus:m-0 focus:overflow-visible focus:[clip:auto] focus:bg-blue-600 focus:text-white focus:rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
+              className="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:p-4 focus:w-auto focus:h-auto focus:m-0 focus:overflow-visible focus:[clip:auto] focus:bg-primary focus:text-primary-foreground focus:rounded-xl focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
             >
               Перейти к основному содержимому
             </a>

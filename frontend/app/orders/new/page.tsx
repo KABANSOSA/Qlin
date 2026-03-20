@@ -54,7 +54,6 @@ function NewOrderPageContent() {
     },
   })
 
-  const cleaningType = watch('cleaning_type')
   const roomsCount = watch('rooms_count')
   const bathroomsCount = watch('bathrooms_count')
   const areaSqmRaw = watch('area_sqm') as string | number | undefined
@@ -122,48 +121,38 @@ function NewOrderPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute -bottom-32 left-1/2 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: '4s' }}></div>
-      </div>
-      
-      <div className="relative container mx-auto p-4 py-8 max-w-5xl">
-        {/* Hero Header - Premium */}
-        <div className="mb-12 text-center animate-fade-in">
-          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full glass-premium border-2 border-blue-200/50 mb-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center">
-              <MapPin className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-blue-700">Новый заказ</span>
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border/60 bg-hero-mesh">
+        <div className="container mx-auto max-w-5xl px-4 py-12 text-center md:py-14">
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm">
+            <MapPin className="h-3.5 w-3.5 text-primary" aria-hidden />
+            <span>Новый заказ</span>
           </div>
-          <h1 className="text-6xl md:text-7xl lg:text-8xl font-extrabold mb-6 text-gradient text-shadow-premium animate-slide-up">
-            Создать заказ
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-700 max-w-2xl mx-auto font-medium animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            Заполните форму ниже, чтобы оформить заказ на профессиональную уборку
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Создать заказ</h1>
+          <p className="mx-auto mt-3 max-w-xl text-muted-foreground md:text-lg">
+            Адрес на карте, параметры уборки и удобное время — в одной форме.
           </p>
         </div>
+      </div>
+
+      <div className="container mx-auto max-w-5xl px-4 py-10">
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-        {/* Address Card - Premium */}
-        <Card className="border-2 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] transition-all duration-500 animate-slide-up glass-premium hover-lift group overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="gradient-animated text-white rounded-t-lg p-6 transition-all duration-300 relative overflow-hidden">
-            <div className="absolute inset-0 bg-black/10"></div>
-            <div className="relative z-10">
-              <CardTitle className="text-2xl md:text-3xl flex items-center gap-3 font-bold">
-                <div className="w-14 h-14 bg-white/25 rounded-xl flex items-center justify-center backdrop-blur-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-lg">
-                  <MapPin className="h-7 w-7" />
-                </div>
-                Адрес уборки
-              </CardTitle>
-              <CardDescription className="text-white/95 mt-3 text-base font-medium">Укажите точный адрес или выберите на интерактивной карте</CardDescription>
+        <Card className="border-border/80 shadow-elevated">
+          <CardHeader className="border-b border-border/60 bg-surface-muted/40 p-6 md:p-8">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <MapPin className="h-6 w-6" aria-hidden />
+              </div>
+              <div>
+                <CardTitle className="text-xl md:text-2xl">Адрес</CardTitle>
+                <CardDescription className="mt-1 text-base">
+                  Город, подсказки и точка на карте — координаты нужны для заказа
+                </CardDescription>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6 p-6 relative z-10">
+          <CardContent className="space-y-6 p-6 md:p-8">
             <div className="mb-4">
               <label htmlFor="city" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
                 <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -259,24 +248,12 @@ function NewOrderPageContent() {
           </CardContent>
         </Card>
 
-        {/* Cleaning Details Card - Premium */}
-        <Card className="border-2 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] transition-all duration-500 animate-slide-up glass-premium hover-lift group overflow-hidden relative" style={{ animationDelay: '0.1s' }}>
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white rounded-t-lg p-6 transition-all duration-300 relative overflow-hidden">
-            <div className="absolute inset-0 bg-black/10"></div>
-            <div className="relative z-10">
-              <CardTitle className="text-2xl md:text-3xl flex items-center gap-3 font-bold">
-                <div className="w-14 h-14 bg-white/25 rounded-xl flex items-center justify-center backdrop-blur-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-lg">
-                  <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                Детали уборки
-              </CardTitle>
-              <CardDescription className="text-white/95 mt-3 text-base font-medium">Выберите тип и параметры уборки</CardDescription>
-            </div>
+        <Card className="mt-8 border-border/80 shadow-elevated">
+          <CardHeader className="border-b border-border/60 bg-surface-muted/40 p-6 md:p-8">
+            <CardTitle className="text-xl md:text-2xl">Параметры уборки</CardTitle>
+            <CardDescription className="mt-1 text-base">Тип, комнаты и площадь влияют на расчёт</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 p-6 relative z-10">
+          <CardContent className="space-y-6 p-6 md:p-8">
             <div>
               <label htmlFor="cleaning_type" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
                 <svg className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,7 +264,7 @@ function NewOrderPageContent() {
               <div className="relative group">
                 <select
                   id="cleaning_type"
-                  className="flex h-12 w-full rounded-lg border-2 border-gray-300 bg-white px-4 pr-12 py-3 text-sm font-medium text-gray-900 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all duration-200 appearance-none cursor-pointer hover:border-purple-400 hover:shadow-md shadow-sm"
+                  className="h-11 w-full cursor-pointer appearance-none rounded-xl border border-input bg-background px-4 py-2 pr-10 text-sm font-medium shadow-sm transition-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   {...register('cleaning_type')}
                 >
                   <option value="regular">Обычная уборка</option>
@@ -376,46 +353,28 @@ function NewOrderPageContent() {
             </div>
 
             {price && (
-              <div className="gradient-animated p-8 rounded-2xl text-white shadow-2xl animate-scale-in relative overflow-hidden group">
-                <div className="absolute inset-0 bg-black/10"></div>
-                <div className="relative z-10">
-                  <p className="text-sm text-white/90 mb-3 font-semibold uppercase tracking-wide">Примерная стоимость</p>
-                  <p className="text-5xl md:text-6xl font-extrabold mb-3 text-shadow-premium group-hover:scale-105 transition-transform duration-300">
-                    {new Intl.NumberFormat('ru-RU', {
-                      style: 'currency',
-                      currency: 'RUB',
-                    }).format(price)}
-                  </p>
-                  <p className="text-sm text-white/80 mt-2 flex items-center gap-2">
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Окончательная цена может измениться
-                  </p>
-                </div>
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 md:p-8">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ориентировочная сумма</p>
+                <p className="mt-2 text-3xl font-semibold tabular-nums text-foreground md:text-4xl">
+                  {new Intl.NumberFormat('ru-RU', {
+                    style: 'currency',
+                    currency: 'RUB',
+                  }).format(price)}
+                </p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Итог может уточняться после проверки деталей заказа.
+                </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Time Card - Premium */}
-        <Card className="border-2 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] transition-all duration-500 animate-slide-up glass-premium hover-lift group overflow-hidden relative" style={{ animationDelay: '0.2s' }}>
-          <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 text-white rounded-t-lg p-6 transition-all duration-300 relative overflow-hidden">
-            <div className="absolute inset-0 bg-black/10"></div>
-            <div className="relative z-10">
-              <CardTitle className="text-2xl md:text-3xl flex items-center gap-3 font-bold">
-                <div className="w-14 h-14 bg-white/25 rounded-xl flex items-center justify-center backdrop-blur-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-lg">
-                  <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                Время и дополнительные требования
-              </CardTitle>
-              <CardDescription className="text-white/95 mt-3 text-base font-medium">Укажите удобное время и особые пожелания</CardDescription>
-            </div>
+        <Card className="mt-8 border-border/80 shadow-elevated">
+          <CardHeader className="border-b border-border/60 bg-surface-muted/40 p-6 md:p-8">
+            <CardTitle className="text-xl md:text-2xl">Время и пожелания</CardTitle>
+            <CardDescription className="mt-1 text-base">Слот визита и комментарий для исполнителя</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 p-6 relative z-10">
+          <CardContent className="space-y-6 p-6 md:p-8">
               <div>
                 <label htmlFor="scheduled_at" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
                   <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -466,63 +425,51 @@ function NewOrderPageContent() {
         </Card>
 
         {error && (
-          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
             {error}
           </div>
         )}
 
-        {/* Submit Section - Premium */}
-        <div className="sticky bottom-0 glass-premium border-t-2 border-gray-200/50 p-6 rounded-t-2xl shadow-2xl -mx-4 -mb-8 mt-8 backdrop-blur-xl">
-          <div className="flex gap-4 max-w-5xl mx-auto">
+        <div className="sticky bottom-0 z-10 mt-10 border-t border-border/60 bg-background/95 py-6 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+          <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center">
             <Button
               type="submit"
+              size="lg"
               disabled={isSubmitting || !addressCoordinates || !selectedCity}
-              className="flex-1 h-16 text-lg font-bold gradient-animated text-white hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl animate-pulse-glow hover:scale-105 active:scale-95 relative overflow-hidden group"
+              className="h-12 flex-1 sm:h-12"
             >
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Создание заказа...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Создать заказ</span>
-                    <svg className="h-5 w-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </>
-                )}
-              </span>
-              <div className="absolute inset-0 animate-shimmer opacity-0 group-hover:opacity-100"></div>
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  Отправка…
+                </span>
+              ) : (
+                'Создать заказ'
+              )}
             </Button>
-                     <Button
-                       type="button"
-                       variant="outline"
-                       onClick={() => router.back()}
-                       className="h-16 px-8 border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 rounded-xl font-semibold transition-all duration-300 hover:scale-105 active:scale-95"
-                     >
-                       Отмена
-                     </Button>
+            <Button type="button" variant="outline" size="lg" className="h-12 sm:w-40" onClick={() => router.back()}>
+              Отмена
+            </Button>
           </div>
-                   {(!selectedCity || !addressCoordinates) && (
-                     <div className="mt-4 text-sm text-amber-700 bg-amber-50 p-4 rounded-lg border-2 border-amber-200 flex items-center gap-2 animate-slide-up">
-                       <svg className="h-5 w-5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                       </svg>
-                       <span>
-                         {!selectedCity 
-                           ? 'Пожалуйста, сначала выберите город'
-                           : !addressCoordinates
-                           ? 'Пожалуйста, выберите адрес из предложенных вариантов или на карте. Координаты необходимы для создания заказа.'
-                           : 'Пожалуйста, заполните все обязательные поля'
-                         }
-                       </span>
-                     </div>
-                   )}
+          {(!selectedCity || !addressCoordinates) && (
+            <div
+              className="mx-auto mt-4 flex max-w-5xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+              role="status"
+            >
+              <span aria-hidden className="mt-0.5 text-amber-600">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </span>
+              <span>
+                {!selectedCity
+                  ? 'Сначала выберите город'
+                  : !addressCoordinates
+                    ? 'Выберите адрес из подсказок или на карте — нужны координаты'
+                    : 'Заполните обязательные поля'}
+              </span>
+            </div>
+          )}
         </div>
       </form>
       </div>

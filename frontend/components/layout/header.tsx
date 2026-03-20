@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+const navLink =
+  'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded-md focus-visible:ring-offset-2'
 
 export function Header() {
   const router = useRouter()
@@ -46,68 +50,71 @@ export function Header() {
   const closeMobileMenu = () => setMobileMenuOpen(false)
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold text-blue-600 hover:text-blue-700 transition-colors" aria-label="QLIN — на главную">
+    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between md:h-[4.25rem]">
+          <Link
+            href="/"
+            className="text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded-lg focus-visible:ring-offset-2"
+            aria-label="QLIN — на главную"
+          >
             QLIN
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6" aria-label="Основная навигация">
-            <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Основная навигация">
+            <Link href="/" className={cn(navLink, 'px-3 py-2')}>
               Главная
             </Link>
-            <Link href="/about" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+            <Link href="/about" className={cn(navLink, 'px-3 py-2')}>
               О нас
             </Link>
-            <Link href="/pricing" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+            <Link href="/pricing" className={cn(navLink, 'px-3 py-2')}>
               Цены
             </Link>
-            <Link href="/contacts" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+            <Link href="/contacts" className={cn(navLink, 'px-3 py-2')}>
               Контакты
             </Link>
+            <span className="mx-2 h-4 w-px bg-border" aria-hidden />
             {isAuthenticated ? (
               <>
-                <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+                <Link href="/dashboard" className={cn(navLink, 'px-3 py-2')}>
                   Дашборд
                 </Link>
-                <Link href="/orders" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+                <Link href="/orders" className={cn(navLink, 'px-3 py-2')}>
                   Заказы
                 </Link>
-                <Link href="/orders/new">
-                  <Button className="gradient-primary text-white hover:shadow-lg transition-all">
-                    Новый заказ
-                  </Button>
-                </Link>
-                <Link href="/profile" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">
+                <Link href="/profile" className={cn(navLink, 'px-3 py-2')}>
                   Профиль
                 </Link>
-                <Button variant="outline" onClick={handleLogout} className="hover:bg-gray-100">
+                <Link href="/orders/new" className="ml-2">
+                  <Button size="sm">Новый заказ</Button>
+                </Link>
+                <Button variant="ghost" size="sm" className="ml-1" onClick={handleLogout}>
                   Выйти
                 </Button>
               </>
             ) : (
               <>
-                <Link href="/auth/login">
-                  <Button variant="outline" className="hover:bg-gray-100">Войти</Button>
-                </Link>
-                <Link href="/auth/register">
-                  <Button className="gradient-primary text-white hover:shadow-lg transition-all">
-                    Регистрация
+                <Link href="/auth/login" className="ml-2">
+                  <Button variant="ghost" size="sm">
+                    Войти
                   </Button>
+                </Link>
+                <Link href="/auth/register" className="ml-1">
+                  <Button size="sm">Регистрация</Button>
                 </Link>
               </>
             )}
           </nav>
 
-          <div className="md:hidden relative" ref={mobileMenuRef}>
+          <div className="relative md:hidden" ref={mobileMenuRef}>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-expanded={mobileMenuOpen}
               aria-label={mobileMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
-              className="h-10 w-10"
+              className="rounded-xl"
             >
               {mobileMenuOpen ? (
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
@@ -122,55 +129,67 @@ export function Header() {
 
             {mobileMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-2 w-64 rounded-xl border-2 border-gray-200 bg-white py-3 shadow-xl animate-fade-in"
+                className="absolute right-0 top-full mt-2 w-[min(100vw-2rem,18rem)] rounded-2xl border border-border/80 bg-card p-2 shadow-elevated-lg animate-fade-in"
                 role="dialog"
                 aria-label="Мобильное меню"
               >
-                <Link href="/" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                  Главная
-                </Link>
-                <Link href="/about" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                  О нас
-                </Link>
-                <Link href="/pricing" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                  Цены
-                </Link>
-                <Link href="/contacts" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                  Контакты
-                </Link>
+                {[
+                  ['/', 'Главная'],
+                  ['/about', 'О нас'],
+                  ['/pricing', 'Цены'],
+                  ['/contacts', 'Контакты'],
+                ].map(([href, label]) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="block rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/80"
+                    onClick={closeMobileMenu}
+                  >
+                    {label}
+                  </Link>
+                ))}
                 {isAuthenticated ? (
                   <>
-                    <Link href="/dashboard" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                      Дашборд
-                    </Link>
-                    <Link href="/orders" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                      Заказы
-                    </Link>
-                    <Link href="/orders/new" className="block px-4 py-3" onClick={closeMobileMenu}>
-                      <span className="inline-block w-full rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-center font-semibold text-white">
+                    <div className="my-2 border-t border-border/60" />
+                    {[
+                      ['/dashboard', 'Дашборд'],
+                      ['/orders', 'Заказы'],
+                      ['/profile', 'Профиль'],
+                    ].map(([href, label]) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        className="block rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/80"
+                        onClick={closeMobileMenu}
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                    <Link href="/orders/new" className="block p-2" onClick={closeMobileMenu}>
+                      <Button className="w-full" size="sm">
                         Новый заказ
-                      </span>
-                    </Link>
-                    <Link href="/profile" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium" onClick={closeMobileMenu}>
-                      Профиль
+                      </Button>
                     </Link>
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="block w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-100 font-medium border-t border-gray-100 mt-2"
+                      className="mt-1 w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-muted/80"
                     >
                       Выйти
                     </button>
                   </>
                 ) : (
                   <>
-                    <Link href="/auth/login" className="block px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium border-t border-gray-100" onClick={closeMobileMenu}>
-                      Войти
+                    <div className="my-2 border-t border-border/60" />
+                    <Link href="/auth/login" className="block p-2" onClick={closeMobileMenu}>
+                      <Button variant="outline" className="w-full" size="sm">
+                        Войти
+                      </Button>
                     </Link>
-                    <Link href="/auth/register" className="block px-4 py-3" onClick={closeMobileMenu}>
-                      <span className="inline-block w-full rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-center font-semibold text-white">
+                    <Link href="/auth/register" className="block p-2 pt-0" onClick={closeMobileMenu}>
+                      <Button className="w-full" size="sm">
                         Регистрация
-                      </span>
+                      </Button>
                     </Link>
                   </>
                 )}

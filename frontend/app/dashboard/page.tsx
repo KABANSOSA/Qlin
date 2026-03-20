@@ -7,20 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProtectedRoute } from '@/components/protected-route'
-import { 
-  Calendar, 
-  Clock, 
-  TrendingUp, 
-  DollarSign, 
-  CheckCircle, 
-  AlertCircle,
-  Sparkles,
-  ArrowRight
-} from 'lucide-react'
+import { Calendar, Clock, DollarSign, AlertCircle, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
+import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 
 interface Order {
   id: string
@@ -45,201 +37,156 @@ function DashboardContent() {
   const safeOrders = orders.filter((o): o is Order => o != null && typeof o === 'object')
   const recentOrders = safeOrders.slice(0, 5)
   const totalOrders = safeOrders.length
-  const completedOrders = safeOrders.filter(o => o.status === 'completed').length
-  const pendingOrders = safeOrders.filter(o => ['pending', 'assigned', 'in_progress'].includes(String(o.status))).length
+  const completedOrders = safeOrders.filter((o) => o.status === 'completed').length
+  const pendingOrders = safeOrders.filter((o) => ['pending', 'assigned', 'in_progress'].includes(String(o.status))).length
   const totalSpent = safeOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0)
   const completionRate = totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      assigned: 'bg-blue-100 text-blue-800',
-      in_progress: 'bg-purple-100 text-purple-800',
-      completed: 'bg-green-100 text-green-800',
-      paid: 'bg-emerald-100 text-emerald-800',
-      cancelled: 'bg-red-100 text-red-800',
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getStatusText = (status: string) => {
-    const texts: Record<string, string> = {
-      pending: 'Ожидает',
-      assigned: 'Назначен',
-      in_progress: 'В работе',
-      completed: 'Завершен',
-      paid: 'Оплачен',
-      cancelled: 'Отменен',
-    }
-    return texts[status] || status
-  }
-
   if (ordersLoading) {
     return (
-      <div className="container mx-auto p-4 py-8">
-        <Skeleton className="h-8 w-64 mb-8" />
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+      <div className="container mx-auto max-w-7xl px-4 py-10">
+        <Skeleton className="mb-8 h-9 w-56" />
+        <div className="mb-8 grid gap-4 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-32 rounded-2xl" />
           ))}
         </div>
-        <Skeleton className="h-96" />
+        <Skeleton className="h-96 rounded-2xl" />
       </div>
     )
   }
 
   if (ordersError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Не удалось загрузить данные</h2>
-          <p className="text-gray-600 mb-4">
-            Обновите страницу или попробуйте позже. Если ошибка повторяется, проверьте, что бэкенд запущен.
-          </p>
-          <Button onClick={() => window.location.reload()} variant="outline" size="lg">
-            Обновить страницу
-          </Button>
-        </div>
+      <div className="flex min-h-[50vh] items-center justify-center bg-hero-mesh px-4 py-16">
+        <Card className="max-w-md border-border/80 text-center shadow-elevated-lg">
+          <CardContent className="p-8 md:p-10">
+            <AlertCircle className="mx-auto h-10 w-10 text-amber-600" aria-hidden />
+            <h2 className="mt-4 text-lg font-semibold text-foreground">Не удалось загрузить данные</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Обновите страницу или попробуйте позже. Если ошибка повторяется, проверьте, что бэкенд запущен.
+            </p>
+            <Button className="mt-6" onClick={() => window.location.reload()} variant="outline" size="lg">
+              Обновить
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="container mx-auto p-4 py-8 max-w-7xl">
-        {/* Hero Header */}
-        <div className="text-center mb-12 animate-fade-in">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm border border-blue-200 mb-6">
-            <Sparkles className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-600">Дашборд</span>
-          </div>
-          <h1 className="text-5xl md:text-6xl font-bold mb-4 text-gradient">
-            Дашборд
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Обзор вашей активности и статистика заказов
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border/60 bg-hero-mesh">
+        <div className="container mx-auto max-w-7xl px-4 py-12 md:py-16">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Личный кабинет</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">Дашборд</h1>
+          <p className="mt-3 max-w-xl text-muted-foreground md:text-lg">
+            Краткий обзор заказов на основе ваших данных.
           </p>
         </div>
-
-      {/* Stats Grid */}
-      <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up bg-white/80 backdrop-blur-sm">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-gray-600 font-medium">Всего заказов</CardDescription>
-            <CardTitle className="text-4xl font-bold text-gradient">{totalOrders}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              <span className="font-medium">Все время</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up bg-white/80 backdrop-blur-sm" style={{ animationDelay: '0.1s' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-gray-600 font-medium">Завершено</CardDescription>
-            <CardTitle className="text-4xl font-bold text-green-600">{completedOrders}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Progress value={completionRate} variant="success" showLabel />
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up bg-white/80 backdrop-blur-sm" style={{ animationDelay: '0.2s' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-gray-600 font-medium">В работе</CardDescription>
-            <CardTitle className="text-4xl font-bold text-blue-600">{pendingOrders}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Clock className="h-5 w-5 text-blue-500" />
-              <span className="font-medium">Активные заказы</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-slide-up gradient-primary text-white shadow-xl" style={{ animationDelay: '0.3s' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-white/90 font-medium">Потрачено</CardDescription>
-            <CardTitle className="text-4xl font-bold">{formatPrice(String(totalSpent))}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 text-sm text-white/80">
-              <DollarSign className="h-5 w-5" />
-              <span className="font-medium">Всего</span>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Recent Orders */}
-      <Card className="border-2 shadow-2xl animate-fade-in bg-white/80 backdrop-blur-sm">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50 p-6">
-          <div className="flex items-center justify-between">
+      <div className="container mx-auto max-w-7xl px-4 py-10">
+        <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>Всего заказов</CardDescription>
+              <CardTitle className="text-3xl font-semibold tabular-nums">{totalOrders}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">За всё время в аккаунте</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>Завершено</CardDescription>
+              <CardTitle className="text-3xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                {completedOrders}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Progress value={completionRate} variant="success" showLabel />
+            </CardContent>
+          </Card>
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>Активные</CardDescription>
+              <CardTitle className="text-3xl font-semibold tabular-nums">{pendingOrders}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4 shrink-0" aria-hidden />
+              <span>В процессе или назначены</span>
+            </CardContent>
+          </Card>
+          <Card className="border-primary/20 bg-primary text-primary-foreground shadow-elevated">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-primary-foreground/85">Сумма заказов</CardDescription>
+              <CardTitle className="text-3xl font-semibold tabular-nums">{formatPrice(String(totalSpent))}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-sm text-primary-foreground/85">
+              <DollarSign className="h-4 w-4 shrink-0" aria-hidden />
+              <span>По данным истории</span>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-border/70 shadow-elevated">
+          <CardHeader className="flex flex-col gap-4 border-b border-border/60 bg-surface-muted/30 p-6 sm:flex-row sm:items-center sm:justify-between md:p-8">
             <div>
-              <CardTitle className="text-3xl font-bold mb-2">Последние заказы</CardTitle>
-              <CardDescription className="text-base">Ваши недавние заказы на уборку</CardDescription>
+              <CardTitle className="text-xl md:text-2xl">Последние заказы</CardTitle>
+              <CardDescription className="mt-1">До пяти последних записей</CardDescription>
             </div>
             <Link href="/orders">
-              <Button variant="outline" className="group border-2 hover:bg-blue-50 hover:border-blue-300 h-11">
-                <span className="font-semibold">Все заказы</span>
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              <Button variant="outline" className="gap-2">
+                Все заказы
+                <ArrowRight className="h-4 w-4" aria-hidden />
               </Button>
             </Link>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {recentOrders.length === 0 ? (
-            <div className="p-12 text-center">
-              <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4">У вас пока нет заказов</p>
-              <Link href="/orders/new">
-                <Button className="gradient-primary text-white">
-                  Создать первый заказ
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {recentOrders.map((order, index) => (
-                <Link
-                  key={order?.id ?? index}
-                  href={`/orders/${order?.id ?? ''}`}
-                  className="block p-6 hover:bg-gray-50 transition-colors group animate-slide-up"
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-lg group-hover:text-blue-600 transition-colors">
-                          Заказ #{order?.order_number ?? '—'}
-                        </h3>
-                        <Badge className={getStatusColor(String(order?.status ?? ''))}>
-                          {getStatusText(String(order?.status ?? ''))}
+          </CardHeader>
+          <CardContent className="p-0">
+            {recentOrders.length === 0 ? (
+              <div className="px-6 py-16 text-center md:px-8">
+                <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden />
+                <p className="mt-4 text-muted-foreground">Заказов пока нет</p>
+                <Link href="/orders/new" className="mt-6 inline-block">
+                  <Button>Первый заказ</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {recentOrders.map((order) => (
+                  <Link
+                    key={order?.id}
+                    href={`/orders/${order?.id ?? ''}`}
+                    className="flex flex-col gap-4 px-6 py-5 transition-colors hover:bg-muted/40 md:flex-row md:items-center md:justify-between md:px-8"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-foreground">#{order?.order_number ?? '—'}</span>
+                        <Badge className={getOrderStatusClassName(String(order?.status ?? ''))}>
+                          {getOrderStatusLabel(String(order?.status ?? ''))}
                         </Badge>
                       </div>
-                      <p className="text-gray-600 mb-1">{order?.address ?? '—'}</p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
+                      <p className="mt-1 truncate text-sm text-muted-foreground">{order?.address ?? '—'}</p>
+                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5" aria-hidden />
                           {formatDate(order?.scheduled_at)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="h-4 w-4" />
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <DollarSign className="h-3.5 w-3.5" aria-hidden />
                           {formatPrice(order?.total_price)}
-                        </div>
+                        </span>
                       </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

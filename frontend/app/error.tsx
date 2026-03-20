@@ -16,21 +16,21 @@ export default function Error({
   }, [error])
 
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center px-4">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-6">
-          <AlertCircle className="h-8 w-8 text-red-600" />
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
+      <div className="max-w-md text-center">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+          <AlertCircle className="h-8 w-8 text-destructive" />
         </div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
           Что-то пошло не так
         </h1>
-        <p className="text-gray-600 mb-8">
+        <p className="mb-8 text-muted-foreground">
           Произошла ошибка. Попробуйте обновить страницу или вернуться позже.
         </p>
         <Button
           size="lg"
           onClick={reset}
-          className="gap-2 gradient-primary text-white"
+          className="gap-2"
         >
           <RefreshCw className="h-5 w-5" />
           Попробовать снова

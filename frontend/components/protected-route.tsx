@@ -20,8 +20,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (isAuthenticated === null) {
     return (
-      <div className="container mx-auto p-4 py-8">
-        <div className="text-center">Загрузка...</div>
+      <div className="flex min-h-[40vh] items-center justify-center px-4 py-16">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+          <p className="text-sm text-muted-foreground">Проверка доступа…</p>
+        </div>
       </div>
     )
   }
