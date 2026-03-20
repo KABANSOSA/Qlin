@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Sparkles, Zap, Shield, CreditCard, CheckCircle, ArrowRight, Star } from 'lucide-react'
+import { Sparkles, Zap, Shield, CreditCard, CheckCircle, ArrowRight } from 'lucide-react'
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -68,23 +68,10 @@ export default function Home() {
               )}
             </div>
             
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-8 mt-20 max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: '0.4s' }}>
-              <div className="text-center">
-                <div className="text-4xl font-bold mb-2">10k+</div>
-                <div className="text-sm text-blue-200">Довольных клиентов</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl font-bold mb-2">50k+</div>
-                <div className="text-sm text-blue-200">Выполненных заказов</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl font-bold mb-2">4.9</div>
-                <div className="text-sm text-blue-200 flex items-center justify-center gap-1">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  Средний рейтинг
-                </div>
-              </div>
+            <div className="mt-20 max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: '0.4s' }}>
+              <p className="text-sm md:text-base text-blue-200 text-center">
+                Показываем только реальные данные в личном кабинете: статусы заказов, историю и стоимость.
+              </p>
             </div>
           </div>
         </div>
@@ -197,7 +184,7 @@ export default function Home() {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">Готовы начать?</h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Присоединяйтесь к тысячам довольных клиентов, которые уже оценили наш сервис
+            Оформите первый заказ и оцените сервис на практике
           </p>
           <Link href="/orders/new">
             <Button size="lg" className="text-lg px-10 h-14 bg-white text-blue-600 hover:bg-blue-50 shadow-xl hover:shadow-2xl transition-all duration-300 group">

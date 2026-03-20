@@ -2,11 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (gcc, libffi for bcrypt/cryptography)
 RUN apt-get update && apt-get install -y \
     gcc \
+    libffi-dev \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install wheel
+RUN pip install --no-cache-dir --upgrade pip wheel
 
 # Copy requirements
 COPY requirements.txt .

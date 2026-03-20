@@ -53,6 +53,8 @@ services:
     restart: unless-stopped
     networks:
       - qlin_network
+    ports:
+      - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
   celery:
@@ -67,6 +69,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - SECRET_KEY=${SECRET_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
     depends_on:
       postgres:
         condition: service_healthy

@@ -173,7 +173,7 @@ export default function AboutPage() {
           <div className="text-center mt-16 animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <h3 className="text-3xl md:text-4xl font-bold mb-4 text-gradient">Готовы попробовать?</h3>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Присоединяйтесь к тысячам довольных клиентов
+              Оформите первый заказ и оцените качество сервиса
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
               <Link href="/orders/new">
