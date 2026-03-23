@@ -8,6 +8,7 @@ import { ProtectedRoute } from '@/components/protected-route'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 import { LayoutDashboard } from 'lucide-react'
+import { AppPageHero } from '@/components/layout/app-page-hero'
 
 interface Order {
   id: string
@@ -47,29 +48,28 @@ function AdminPageContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border/60 bg-hero-mesh">
-        <div className="container mx-auto max-w-7xl px-4 py-12 md:py-14">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <LayoutDashboard className="h-5 w-5" aria-hidden />
-            </div>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Админ-панель</h1>
-              <p className="mt-1 text-muted-foreground">Сводка заказов (роль администратора)</p>
-            </div>
+      <AppPageHero
+        eyebrow="Панель · администратор"
+        title="Админ-панель"
+        titleSize="default"
+        gradientTitle={false}
+        description="Сводка заказов (роль администратора)."
+        leading={
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
+            <LayoutDashboard className="h-5 w-5" aria-hidden />
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="container mx-auto max-w-7xl px-4 py-10">
         {!orders?.length ? (
-          <Card className="border-dashed">
+          <Card className="card-tech-glow border-dashed">
             <CardContent className="py-16 text-center text-sm text-muted-foreground">Нет заказов для отображения</CardContent>
           </Card>
         ) : (
           <div className="grid gap-4">
             {orders.map((order) => (
-              <Card key={order.id} className="border-border/70">
+              <Card key={order.id} className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
                 <CardHeader className="flex flex-col gap-3 border-b border-border/60 p-6 sm:flex-row sm:items-start sm:justify-between md:p-8">
                   <div>
                     <CardTitle className="text-lg">Заказ #{order.order_number}</CardTitle>

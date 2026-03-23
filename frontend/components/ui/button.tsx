@@ -9,6 +9,9 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-primary text-primary-foreground shadow-elevated hover:bg-primary/92 hover:shadow-elevated-lg',
+        /** Продающий градиент + сильная тень — главные CTA */
+        cta:
+          'btn-cta-shine border border-white/15 bg-gradient-to-br from-primary via-[hsl(210,62%,42%)] to-[hsl(199,72%,36%)] text-primary-foreground shadow-[0_16px_48px_-6px_hsl(221_62%_45%/0.55)] hover:shadow-[0_22px_56px_-6px_hsl(221_62%_45%/0.62)] hover:brightness-[1.03]',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-elevated',
         outline:
           'border border-input bg-background hover:bg-accent/80 hover:border-border',

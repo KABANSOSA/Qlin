@@ -26,9 +26,14 @@ fi
 echo "📦 Останавливаем старые контейнеры..."
 $DOCKER_COMPOSE -f docker-compose.prod.yml down
 
-# Сборка образов
+# Сборка образов (без --no-cache и без --parallel: на маленьком диске VPS иначе «No space left on device»)
+# Полная пересборка с нуля: CACHE_BUST=1 ./deploy.sh
 echo "🔨 Собираем Docker образы..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml build --no-cache --parallel
+if [ "${CACHE_BUST:-0}" = "1" ]; then
+  $DOCKER_COMPOSE -f docker-compose.prod.yml build --no-cache
+else
+  $DOCKER_COMPOSE -f docker-compose.prod.yml build
+fi
 
 # Запуск контейнеров
 echo "▶️  Запускаем контейнеры..."

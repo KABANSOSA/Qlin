@@ -25,6 +25,7 @@ import {
   Package,
   ArrowRight,
   Shield,
+  Sparkles,
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
@@ -132,20 +133,37 @@ function ProfilePageContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border/60 bg-hero-mesh">
-        <div className="container mx-auto max-w-6xl px-4 py-12 md:py-16">
+      <div className="relative overflow-hidden border-b border-border/50 bg-hero-mesh">
+        <div className="hero-spotlight pointer-events-none absolute inset-0" aria-hidden />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/35 to-transparent" />
+        <div
+          className="tech-orb -left-16 top-10 h-52 w-52 animate-float-soft bg-primary/20"
+          style={{ animationDelay: '-5s' }}
+          aria-hidden
+        />
+        <div
+          className="tech-orb right-[-10%] top-20 h-64 w-64 animate-float-soft bg-sky-400/16"
+          style={{ animationDelay: '-10s' }}
+          aria-hidden
+        />
+        <div className="container relative mx-auto max-w-6xl px-4 py-12 md:py-16">
           <div className="flex flex-col gap-8 md:flex-row md:items-center">
             <div className="relative mx-auto md:mx-0">
-              <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-border/80 bg-card text-3xl font-semibold shadow-elevated md:h-32 md:w-32 md:text-4xl">
+              <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-primary/30 bg-gradient-to-br from-card to-primary/5 text-3xl font-semibold shadow-[0_16px_48px_hsl(221_62%_45%/0.18)] ring-4 ring-background md:h-32 md:w-32 md:text-4xl">
                 {user.first_name ? user.first_name[0].toUpperCase() : user.phone?.[0] || 'U'}
               </div>
-              <div className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-emerald-600 text-primary-foreground">
+              <div className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-emerald-600 text-primary-foreground shadow-md">
                 <CheckCircle className="h-4 w-4" aria-hidden />
               </div>
             </div>
             <div className="flex-1 text-center md:text-left">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Профиль</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{displayName}</h1>
+              <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-gradient-to-r from-primary/10 to-transparent px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+                <Sparkles className="h-3 w-3 text-premium" aria-hidden />
+                Аккаунт · профиль
+              </p>
+              <h1 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-4xl">
+                <span className="text-gradient-headline">{displayName}</span>
+              </h1>
               <p className="mt-2 text-muted-foreground">{user.email || user.phone}</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
                 <Badge variant="secondary" className="gap-1 font-normal">
@@ -164,14 +182,14 @@ function ProfilePageContent() {
 
       <div className="container mx-auto max-w-6xl px-4 py-10">
         <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <Card className="border-border/70">
+          <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
             <CardHeader className="pb-2">
               <CardDescription>Всего</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums">{stats.total_orders}</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">Заказов в аккаунте</CardContent>
           </Card>
-          <Card className="border-border/70">
+          <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
             <CardHeader className="pb-2">
               <CardDescription>Завершено</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
@@ -185,7 +203,7 @@ function ProfilePageContent() {
               <p className="mt-2 text-xs text-muted-foreground">{completionRate.toFixed(0)}% от всех</p>
             </CardContent>
           </Card>
-          <Card className="border-border/70">
+          <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
             <CardHeader className="pb-2">
               <CardDescription>Активные</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums">{stats.active_orders}</CardTitle>
@@ -195,7 +213,7 @@ function ProfilePageContent() {
               В работе / ожидают
             </CardContent>
           </Card>
-          <Card className="border-primary/20 bg-primary text-primary-foreground shadow-elevated">
+          <Card className="border-primary/25 bg-primary text-primary-foreground shadow-[0_12px_40px_hsl(221_62%_45%/0.22)] ring-1 ring-primary-foreground/10">
             <CardHeader className="pb-2">
               <CardDescription className="text-primary-foreground/85">Потрачено</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums">{formatPrice(String(stats.total_spent))}</CardTitle>
@@ -209,10 +227,11 @@ function ProfilePageContent() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <Card className="border-border/70">
+            <Card className="card-tech-glow border-border/70">
               <CardHeader className="flex flex-col gap-4 border-b border-border/60 bg-surface-muted/30 p-6 sm:flex-row sm:items-center sm:justify-between md:p-8">
                 <div>
-                  <CardTitle className="text-xl">Личные данные</CardTitle>
+                  <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-primary">Редактирование</p>
+                  <CardTitle className="mt-1 text-xl">Личные данные</CardTitle>
                   <CardDescription>Имя и почта (телефон фиксирован)</CardDescription>
                 </div>
                 {!isEditing && (
@@ -315,13 +334,13 @@ function ProfilePageContent() {
           </div>
 
           <div className="space-y-6">
-            <Card className="border-border/70">
+            <Card className="card-tech-glow border-border/70">
               <CardHeader className="border-b border-border/60 p-6">
                 <CardTitle className="text-lg">Действия</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 p-4">
                 <Link href="/orders/new" className="block">
-                  <Button className="w-full justify-between gap-2" variant="default">
+                  <Button className="w-full justify-between gap-2" variant="cta">
                     Новый заказ
                     <ArrowRight className="h-4 w-4" aria-hidden />
                   </Button>
@@ -340,13 +359,13 @@ function ProfilePageContent() {
                 </Link>
               </CardContent>
             </Card>
-            <Card className="border-border/70">
+            <Card className="card-tech-glow border-border/70">
               <CardHeader className="border-b border-border/60 p-6">
                 <CardTitle className="text-lg">Безопасность</CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="flex gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
                     <Shield className="h-5 w-5" aria-hidden />
                   </div>
                   <div>

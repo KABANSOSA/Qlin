@@ -50,15 +50,21 @@ export function Header() {
   const closeMobileMenu = () => setMobileMenuOpen(false)
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/75 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65 relative after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-primary/45 after:to-transparent">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between md:h-[4.25rem]">
           <Link
             href="/"
-            className="text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded-lg focus-visible:ring-offset-2"
+            className="group flex items-baseline gap-0.5 text-lg font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded-lg focus-visible:ring-offset-2"
             aria-label="QLIN — на главную"
           >
-            QLIN
+            <span className="bg-gradient-to-br from-primary via-primary to-sky-600 bg-clip-text text-transparent transition-opacity group-hover:opacity-90">
+              Q
+            </span>
+            <span className="text-foreground transition-opacity group-hover:opacity-90">LIN</span>
+            <span className="ml-2 hidden rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:inline">
+              Pro
+            </span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Основная навигация">
@@ -87,7 +93,9 @@ export function Header() {
                   Профиль
                 </Link>
                 <Link href="/orders/new" className="ml-2">
-                  <Button size="sm">Новый заказ</Button>
+                  <Button size="sm" variant="cta">
+                    Новый заказ
+                  </Button>
                 </Link>
                 <Button variant="ghost" size="sm" className="ml-1" onClick={handleLogout}>
                   Выйти
@@ -101,7 +109,9 @@ export function Header() {
                   </Button>
                 </Link>
                 <Link href="/auth/register" className="ml-1">
-                  <Button size="sm">Регистрация</Button>
+                  <Button size="sm" variant="cta">
+                    Регистрация
+                  </Button>
                 </Link>
               </>
             )}
@@ -166,7 +176,7 @@ export function Header() {
                       </Link>
                     ))}
                     <Link href="/orders/new" className="block p-2" onClick={closeMobileMenu}>
-                      <Button className="w-full" size="sm">
+                      <Button className="w-full" size="sm" variant="cta">
                         Новый заказ
                       </Button>
                     </Link>
@@ -187,7 +197,7 @@ export function Header() {
                       </Button>
                     </Link>
                     <Link href="/auth/register" className="block p-2 pt-0" onClick={closeMobileMenu}>
-                      <Button className="w-full" size="sm">
+                      <Button className="w-full" size="sm" variant="cta">
                         Регистрация
                       </Button>
                     </Link>

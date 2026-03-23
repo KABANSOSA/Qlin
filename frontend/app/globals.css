@@ -29,6 +29,9 @@
     /* Elevated surfaces */
     --surface: 0 0% 100%;
     --surface-muted: 220 16% 98%;
+    /* Warm accent — premium / conversion highlights (badges, key lines) */
+    --premium: 32 92% 44%;
+    --premium-foreground: 26 25% 12%;
   }
 
   .dark {
@@ -53,6 +56,8 @@
     --ring: 224 76% 55%;
     --surface: 222 22% 11%;
     --surface-muted: 222 20% 14%;
+    --premium: 38 92% 54%;
+    --premium-foreground: 26 30% 10%;
   }
 }
 
@@ -63,6 +68,10 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    background-image:
+      radial-gradient(ellipse 120% 80% at 50% -35%, hsl(var(--primary) / 0.11), transparent 58%),
+      radial-gradient(ellipse 70% 50% at 100% 0%, hsl(199 70% 50% / 0.06), transparent 50%),
+      radial-gradient(ellipse 60% 40% at 0% 30%, hsl(221 62% 50% / 0.05), transparent 45%);
   }
 
   html {
@@ -97,13 +106,90 @@
     @apply bg-[hsl(var(--background))];
   }
 
-  /** Subtle mesh hero — no heavy rainbow motion */
+  /** Hero: mesh + spotlight — stronger, «landing» presence */
   .bg-hero-mesh {
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(ellipse 85% 55% at 50% -15%, hsl(var(--primary) / 0.11), transparent 55%),
-      radial-gradient(ellipse 50% 35% at 100% 0%, hsl(199 65% 48% / 0.07), transparent 50%),
-      radial-gradient(ellipse 40% 30% at 0% 20%, hsl(221 62% 45% / 0.06), transparent 45%);
+      radial-gradient(ellipse 90% 70% at 50% -25%, hsl(var(--primary) / 0.2), transparent 55%),
+      linear-gradient(to right, hsl(var(--foreground) / 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.055) 1px, transparent 1px),
+      radial-gradient(ellipse 85% 55% at 50% -15%, hsl(var(--primary) / 0.12), transparent 55%),
+      radial-gradient(ellipse 50% 35% at 100% 0%, hsl(199 70% 52% / 0.12), transparent 50%),
+      radial-gradient(ellipse 40% 30% at 0% 20%, hsl(221 62% 48% / 0.1), transparent 45%);
+    background-size:
+      auto,
+      72px 72px,
+      72px 72px,
+      auto,
+      auto,
+      auto;
+  }
+
+  /** Spotlight behind headline (centered hero) */
+  .hero-spotlight {
+    background: radial-gradient(
+      ellipse 85% 65% at 50% 45%,
+      hsl(var(--primary) / 0.09),
+      transparent 65%
+    );
+  }
+
+  .bg-tech-grid {
+    background-size: 48px 48px;
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.9) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.9) 1px, transparent 1px);
+  }
+
+  /** Soft aurora orbs (decorative) */
+  .tech-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(64px);
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  .text-gradient-headline {
+    background: linear-gradient(
+      125deg,
+      hsl(var(--foreground)) 0%,
+      hsl(var(--primary)) 38%,
+      hsl(199 75% 36%) 72%,
+      hsl(210 85% 32%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /** Extra punch for hero titles */
+  .text-gradient-hero {
+    background: linear-gradient(
+      118deg,
+      hsl(222 28% 14%) 0%,
+      hsl(var(--primary)) 42%,
+      hsl(199 78% 34%) 78%,
+      hsl(210 90% 30%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .glass-chip {
+    @apply border border-white/40 bg-white/70 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-card/80;
+  }
+
+  .border-gradient-h {
+    border-image: linear-gradient(
+        90deg,
+        transparent,
+        hsl(var(--primary) / 0.45),
+        hsl(199 65% 48% / 0.35),
+        transparent
+      )
+      1;
   }
 
   .bg-hero-mesh-dark {
@@ -206,6 +292,81 @@
   to {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(8px, -12px) scale(1.02);
+  }
+}
+
+.animate-float-soft {
+  animation: float-soft 18s ease-in-out infinite;
+}
+
+.card-tech-glow {
+  box-shadow:
+    0 0 0 1px hsl(var(--border) / 0.8),
+    0 1px 2px hsl(222 22% 12% / 0.04),
+    0 12px 40px hsl(221 62% 45% / 0.07);
+}
+
+.card-tech-glow:hover {
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.22),
+    0 1px 2px hsl(222 22% 12% / 0.05),
+    0 16px 48px hsl(221 62% 45% / 0.12);
+}
+
+/** Premium CTA strip / final section */
+.bg-cta-premium {
+  background:
+    linear-gradient(165deg, hsl(var(--primary)) 0%, hsl(221 58% 38%) 45%, hsl(215 70% 28%) 100%);
+}
+
+/** Subtle shine sweep on hover (buttons) */
+@keyframes cta-shine {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(180%) skewX(-12deg);
+  }
+}
+
+.btn-cta-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-cta-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    hsl(0 0% 100% / 0.18) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  transform: translateX(-120%) skewX(-12deg);
+  pointer-events: none;
+}
+
+.btn-cta-shine:hover::after {
+  animation: cta-shine 0.85s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-cta-shine:hover::after {
+    animation: none;
   }
 }
 

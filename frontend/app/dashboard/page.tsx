@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
+import { AppPageHero } from '@/components/layout/app-page-hero'
 
 interface Order {
   id: string
@@ -59,14 +60,14 @@ function DashboardContent() {
   if (ordersError) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center bg-hero-mesh px-4 py-16">
-        <Card className="max-w-md border-border/80 text-center shadow-elevated-lg">
+        <Card className="card-tech-glow max-w-md border-border/80 text-center shadow-elevated-lg">
           <CardContent className="p-8 md:p-10">
             <AlertCircle className="mx-auto h-10 w-10 text-amber-600" aria-hidden />
             <h2 className="mt-4 text-lg font-semibold text-foreground">Не удалось загрузить данные</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Обновите страницу или попробуйте позже. Если ошибка повторяется, проверьте, что бэкенд запущен.
             </p>
-            <Button className="mt-6" onClick={() => window.location.reload()} variant="outline" size="lg">
+            <Button className="mt-6" onClick={() => window.location.reload()} variant="cta" size="lg">
               Обновить
             </Button>
           </CardContent>
@@ -77,19 +78,15 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border/60 bg-hero-mesh">
-        <div className="container mx-auto max-w-7xl px-4 py-12 md:py-16">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Личный кабинет</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">Дашборд</h1>
-          <p className="mt-3 max-w-xl text-muted-foreground md:text-lg">
-            Краткий обзор заказов на основе ваших данных.
-          </p>
-        </div>
-      </div>
+      <AppPageHero
+        eyebrow="Личный кабинет · обзор"
+        title="Дашборд"
+        description="Краткий обзор заказов на основе ваших данных."
+      />
 
       <div className="container mx-auto max-w-7xl px-4 py-10">
         <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-border/70">
+          <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
             <CardHeader className="pb-2">
               <CardDescription>Всего заказов</CardDescription>
               <CardTitle className="text-3xl font-semibold tabular-nums">{totalOrders}</CardTitle>
@@ -98,7 +95,7 @@ function DashboardContent() {
               <p className="text-xs text-muted-foreground">За всё время в аккаунте</p>
             </CardContent>
           </Card>
-          <Card className="border-border/70">
+          <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
             <CardHeader className="pb-2">
               <CardDescription>Завершено</CardDescription>
               <CardTitle className="text-3xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
@@ -109,7 +106,7 @@ function DashboardContent() {
               <Progress value={completionRate} variant="success" showLabel />
             </CardContent>
           </Card>
-          <Card className="border-border/70">
+          <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
             <CardHeader className="pb-2">
               <CardDescription>Активные</CardDescription>
               <CardTitle className="text-3xl font-semibold tabular-nums">{pendingOrders}</CardTitle>
@@ -119,7 +116,7 @@ function DashboardContent() {
               <span>В процессе или назначены</span>
             </CardContent>
           </Card>
-          <Card className="border-primary/20 bg-primary text-primary-foreground shadow-elevated">
+          <Card className="border-primary/25 bg-primary text-primary-foreground shadow-[0_12px_40px_hsl(221_62%_45%/0.22)] ring-1 ring-primary-foreground/10">
             <CardHeader className="pb-2">
               <CardDescription className="text-primary-foreground/85">Сумма заказов</CardDescription>
               <CardTitle className="text-3xl font-semibold tabular-nums">{formatPrice(String(totalSpent))}</CardTitle>
@@ -131,7 +128,7 @@ function DashboardContent() {
           </Card>
         </div>
 
-        <Card className="border-border/70 shadow-elevated">
+        <Card className="card-tech-glow border-border/70 shadow-elevated">
           <CardHeader className="flex flex-col gap-4 border-b border-border/60 bg-surface-muted/30 p-6 sm:flex-row sm:items-center sm:justify-between md:p-8">
             <div>
               <CardTitle className="text-xl md:text-2xl">Последние заказы</CardTitle>
@@ -150,7 +147,9 @@ function DashboardContent() {
                 <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden />
                 <p className="mt-4 text-muted-foreground">Заказов пока нет</p>
                 <Link href="/orders/new" className="mt-6 inline-block">
-                  <Button>Первый заказ</Button>
+                  <Button variant="cta" size="lg" className="gap-2">
+                    Первый заказ
+                  </Button>
                 </Link>
               </div>
             ) : (

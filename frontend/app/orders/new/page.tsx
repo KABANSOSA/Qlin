@@ -14,6 +14,7 @@ import { ProtectedRoute } from '@/components/protected-route'
 import { AddressSelector } from '@/components/address-selector'
 import { CitySelector } from '@/components/city-selector'
 import { MapPin } from 'lucide-react'
+import { AppPageHero } from '@/components/layout/app-page-hero'
 import { useToast } from '@/hooks/use-toast'
 
 const orderSchema = z.object({
@@ -122,26 +123,22 @@ function NewOrderPageContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border/60 bg-hero-mesh">
-        <div className="container mx-auto max-w-5xl px-4 py-12 text-center md:py-14">
-          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm">
-            <MapPin className="h-3.5 w-3.5 text-primary" aria-hidden />
-            <span>Новый заказ</span>
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Создать заказ</h1>
-          <p className="mx-auto mt-3 max-w-xl text-muted-foreground md:text-lg">
-            Адрес на карте, параметры уборки и удобное время — в одной форме.
-          </p>
-        </div>
-      </div>
+      <AppPageHero
+        centered
+        maxWidthClass="max-w-5xl"
+        eyebrow="Заказ · оформление"
+        title="Создать заказ"
+        description="Адрес на карте, параметры уборки и удобное время — в одной форме."
+      />
 
       <div className="container mx-auto max-w-5xl px-4 py-10">
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-        <Card className="border-border/80 shadow-elevated">
+        <Card className="card-tech-glow overflow-hidden border-border/80 shadow-elevated">
+          <div className="h-1 bg-gradient-to-r from-primary via-sky-500 to-cyan-500" />
           <CardHeader className="border-b border-border/60 bg-surface-muted/40 p-6 md:p-8">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary ring-1 ring-primary/20">
                 <MapPin className="h-6 w-6" aria-hidden />
               </div>
               <div>
@@ -248,7 +245,7 @@ function NewOrderPageContent() {
           </CardContent>
         </Card>
 
-        <Card className="mt-8 border-border/80 shadow-elevated">
+        <Card className="card-tech-glow mt-8 border-border/80 shadow-elevated">
           <CardHeader className="border-b border-border/60 bg-surface-muted/40 p-6 md:p-8">
             <CardTitle className="text-xl md:text-2xl">Параметры уборки</CardTitle>
             <CardDescription className="mt-1 text-base">Тип, комнаты и площадь влияют на расчёт</CardDescription>
@@ -369,7 +366,7 @@ function NewOrderPageContent() {
           </CardContent>
         </Card>
 
-        <Card className="mt-8 border-border/80 shadow-elevated">
+        <Card className="card-tech-glow mt-8 border-border/80 shadow-elevated">
           <CardHeader className="border-b border-border/60 bg-surface-muted/40 p-6 md:p-8">
             <CardTitle className="text-xl md:text-2xl">Время и пожелания</CardTitle>
             <CardDescription className="mt-1 text-base">Слот визита и комментарий для исполнителя</CardDescription>
@@ -434,9 +431,10 @@ function NewOrderPageContent() {
           <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center">
             <Button
               type="submit"
+              variant="cta"
               size="lg"
               disabled={isSubmitting || !addressCoordinates || !selectedCity}
-              className="h-12 flex-1 sm:h-12"
+              className="h-14 flex-1 text-base sm:h-14"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">

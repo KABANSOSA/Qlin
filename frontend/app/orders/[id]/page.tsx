@@ -51,16 +51,18 @@ function OrderDetailPageContent() {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto max-w-5xl px-4 py-10">
-          <Card className="border-border/80">
+          <Card className="card-tech-glow border-border/80">
             <CardContent className="p-10 text-center md:p-12">
               <h3 className="text-lg font-semibold">Заказ не найден</h3>
               <p className="mt-2 text-sm text-muted-foreground">Не удалось загрузить или неверный идентификатор.</p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button onClick={() => refetch()} variant="outline">
+                <Button onClick={() => refetch()} variant="cta">
                   Повторить
                 </Button>
                 <Link href="/orders">
-                  <Button className="w-full sm:w-auto">К списку</Button>
+                  <Button variant="outline" className="w-full border-border/80 bg-background/80 sm:w-auto">
+                    К списку
+                  </Button>
                 </Link>
               </div>
             </CardContent>
@@ -80,11 +82,13 @@ function OrderDetailPageContent() {
           </Button>
         </Link>
 
-        <Card className="mb-6 border-border/80 shadow-elevated">
+        <Card className="card-tech-glow mb-6 overflow-hidden border-border/80 shadow-elevated">
+          <div className="h-1 bg-gradient-to-r from-primary via-sky-500 to-cyan-500" />
           <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between md:p-8">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-primary">Заказ · карточка</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-sm font-semibold text-primary ring-1 ring-primary/20">
                   #{order.order_number}
                 </div>
                 <div>
@@ -104,9 +108,10 @@ function OrderDetailPageContent() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80">
+        <Card className="card-tech-glow border-border/80">
           <CardHeader className="border-b border-border/60 bg-surface-muted/30 p-6 md:p-8">
-            <CardTitle className="text-xl">Детали</CardTitle>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-primary">Параметры · расчёт</p>
+            <CardTitle className="mt-1 text-xl">Детали</CardTitle>
             <CardDescription>Параметры и стоимость</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 p-6 md:p-8">
@@ -180,7 +185,7 @@ function OrderDetailPageContent() {
                 <p className="text-3xl font-semibold tabular-nums text-foreground md:text-4xl">{formatPrice(order.total_price)}</p>
               </div>
               {order.status === 'completed' && order.payment_status !== 'paid' && (
-                <Button size="lg" className="w-full sm:w-auto">
+                <Button size="lg" variant="cta" className="w-full sm:w-auto">
                   Оплатить
                 </Button>
               )}

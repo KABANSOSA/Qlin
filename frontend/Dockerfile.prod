@@ -1,15 +1,24 @@
 FROM node:18-alpine
 
+# Для стабильной работы Node на Alpine + актуальные CA (HTTPS к registry.npmjs.org)
+RUN apk add --no-cache libc6-compat ca-certificates && update-ca-certificates
+
 WORKDIR /app
 
-# Увеличиваем лимит памяти для Node.js
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 
-# Копируем package.json
-COPY package.json ./
+# Lockfile нужен для предсказуемой установки и меньше сбоев резолва
+COPY package.json package-lock.json ./
 
-# Устанавливаем зависимости
-RUN npm install --legacy-peer-deps --progress=false --loglevel=error
+# Длинные таймауты и ретраи (слабый канал / фильтрация до npm)
+RUN npm config set fetch-timeout 300000 && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000
+
+# ci быстрее и строже; при рассинхроне lock — fallback на install
+RUN npm ci --legacy-peer-deps --no-audit --no-fund \
+    || npm install --legacy-peer-deps --no-audit --no-fund
 
 # Копируем весь код
 COPY . .
@@ -31,9 +40,7 @@ RUN npm run build
 RUN cp -r .next/static .next/standalone/.next/static 2>/dev/null || true
 RUN if [ -d public ]; then cp -r public/. .next/standalone/public/; else mkdir -p .next/standalone/public; fi
 
-# Открываем порт
 EXPOSE 3000
 
-# Запускаем приложение в standalone режиме
 WORKDIR /app/.next/standalone
 CMD ["node", "server.js"]

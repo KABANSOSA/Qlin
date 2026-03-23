@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LogIn, Phone, Lock, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
+import { AuthPageShell } from '@/components/layout/auth-page-shell'
 
 const loginSchema = z.object({
   phone: z.string().min(10, 'Номер телефона должен содержать минимум 10 символов'),
@@ -59,18 +60,20 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-hero-mesh px-4 py-12">
-      <div className="w-full max-w-md animate-fade-in">
+    <AuthPageShell>
+      <div className="mx-auto w-full max-w-md animate-fade-in">
         <div className="mb-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">QLIN</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">Вход</h1>
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">QLIN · auth</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            <span className="text-gradient-headline">Вход</span>
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">Телефон и пароль от вашего аккаунта</p>
         </div>
 
-        <Card className="border-border/80 shadow-elevated-lg">
+        <Card className="card-tech-glow border-border/80 shadow-elevated-lg">
           <CardHeader className="space-y-2 border-b border-border/60 bg-surface-muted/30 p-6 md:p-8">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
                 <LogIn className="h-5 w-5" aria-hidden />
               </div>
               <div>
@@ -122,7 +125,7 @@ function LoginPageContent() {
                 </div>
               )}
 
-              <Button type="submit" className="h-12 w-full gap-2 text-base" disabled={isSubmitting}>
+              <Button type="submit" variant="cta" className="h-12 w-full gap-2 text-base" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -146,18 +149,18 @@ function LoginPageContent() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AuthPageShell>
   )
 }
 
 function LoginPageFallback() {
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-hero-mesh px-4">
-      <div className="text-center">
+    <AuthPageShell>
+      <div className="mx-auto text-center">
         <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         <p className="mt-4 text-sm text-muted-foreground">Загрузка…</p>
       </div>
-    </div>
+    </AuthPageShell>
   )
 }
 

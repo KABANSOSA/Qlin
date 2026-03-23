@@ -4,20 +4,30 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, KeyRound, Phone, MessageCircle } from 'lucide-react'
+import { AuthPageShell } from '@/components/layout/auth-page-shell'
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-hero-mesh px-4 py-12">
-      <div className="w-full max-w-md animate-fade-in">
-        <Card className="border-border/80 shadow-elevated-lg">
+    <AuthPageShell>
+      <div className="mx-auto w-full max-w-md animate-fade-in">
+        <div className="mb-6 text-center">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+            Поддержка · сброс пароля
+          </p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+            <span className="text-gradient-headline">Восстановление доступа</span>
+          </h1>
+        </div>
+        <Card className="card-tech-glow border-border/80 shadow-elevated-lg">
           <CardHeader className="space-y-3 border-b border-border/60 bg-surface-muted/30 p-6 md:p-8">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
               <KeyRound className="h-5 w-5" aria-hidden />
             </div>
             <div>
-              <CardTitle className="text-xl md:text-2xl">Восстановление доступа</CardTitle>
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-primary">Инструкция</p>
+              <CardTitle className="mt-2 text-xl md:text-2xl">Через поддержку</CardTitle>
               <CardDescription className="mt-2 text-base">
-                Свяжитесь с поддержкой — подтвердим личность и поможем сбросить пароль.
+                Подтвердим личность и поможем сбросить пароль вручную.
               </CardDescription>
             </div>
           </CardHeader>
@@ -41,15 +51,22 @@ export default function ForgotPasswordPage() {
               <MessageCircle className="h-5 w-5 shrink-0 text-primary" aria-hidden />
               <span className="font-medium text-foreground">Telegram: @CleaningRu_bot</span>
             </a>
-            <Link href="/auth/login" className="block pt-2">
-              <Button variant="outline" className="w-full gap-2">
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                Назад ко входу
-              </Button>
-            </Link>
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              <a href="tel:+79621129483" className="block flex-1">
+                <Button variant="cta" className="w-full">
+                  Позвонить в поддержку
+                </Button>
+              </a>
+              <Link href="/auth/login" className="block flex-1">
+                <Button variant="outline" className="w-full gap-2 border-border/80 bg-background/80">
+                  <ArrowLeft className="h-4 w-4" aria-hidden />
+                  Назад ко входу
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AuthPageShell>
   )
 }

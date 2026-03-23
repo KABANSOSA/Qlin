@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Link from 'next/link'
 import { UserPlus, Phone, Mail, User, Lock, ArrowRight } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { AuthPageShell } from '@/components/layout/auth-page-shell'
 
 const registerSchema = z
   .object({
@@ -79,20 +80,22 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-start justify-center bg-hero-mesh px-4 py-12">
-      <div className="w-full max-w-lg animate-fade-in">
+    <AuthPageShell align="start">
+      <div className="mx-auto w-full max-w-lg animate-fade-in">
         <div className="mb-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">QLIN</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">Регистрация</h1>
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">QLIN · onboarding</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            <span className="text-gradient-headline">Регистрация</span>
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Создайте аккаунт, чтобы оформлять уборку и видеть статусы в кабинете
           </p>
         </div>
 
-        <Card className="border-border/80 shadow-elevated-lg">
+        <Card className="card-tech-glow border-border/80 shadow-elevated-lg">
           <CardHeader className="space-y-2 border-b border-border/60 bg-surface-muted/30 p-6 md:p-8">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
                 <UserPlus className="h-5 w-5" aria-hidden />
               </div>
               <div>
@@ -191,7 +194,7 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              <Button type="submit" className="mt-2 h-12 w-full gap-2 text-base" disabled={isSubmitting}>
+              <Button type="submit" variant="cta" className="mt-2 h-12 w-full gap-2 text-base" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -215,6 +218,6 @@ export default function RegisterPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AuthPageShell>
   )
 }

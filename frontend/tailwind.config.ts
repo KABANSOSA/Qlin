@@ -19,10 +19,12 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       fontSize: {
-        'display': ['3.5rem', { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '600' }],
+        display: ['3.5rem', { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '600' }],
         'display-sm': ['2.5rem', { lineHeight: '1.1', letterSpacing: '-0.025em', fontWeight: '600' }],
+        'display-xl': ['clamp(2.75rem,6vw,4.25rem)', { lineHeight: '1.02', letterSpacing: '-0.035em', fontWeight: '600' }],
       },
       boxShadow: {
         elevated: '0 1px 2px hsl(222 22% 12% / 0.04), 0 8px 24px hsl(222 22% 12% / 0.06)',
@@ -65,6 +67,10 @@ const config: Config = {
         surface: {
           DEFAULT: 'hsl(var(--surface))',
           muted: 'hsl(var(--surface-muted))',
+        },
+        premium: {
+          DEFAULT: 'hsl(var(--premium))',
+          foreground: 'hsl(var(--premium-foreground))',
         },
       },
       borderRadius: {

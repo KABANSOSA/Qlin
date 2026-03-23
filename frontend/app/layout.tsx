@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { Header } from '@/components/layout/header'
@@ -9,6 +9,12 @@ import { ToastProvider } from '@/components/providers/toast-provider'
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
   variable: '--font-sans',
+  display: 'swap',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-mono',
   display: 'swap',
 })
 
@@ -30,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ru" className={inter.variable}>
+    <html lang="ru" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className={`${inter.className} min-h-screen bg-background`}>
         <Providers>
           <ToastProvider>
@@ -40,7 +46,7 @@ export default function RootLayout({
             >
               Перейти к основному содержимому
             </a>
-            <div className="min-h-screen flex flex-col">
+            <div className="relative flex min-h-screen flex-col">
               <Header />
               <main id="main-content" className="flex-1" tabIndex={-1}>
                 {children}

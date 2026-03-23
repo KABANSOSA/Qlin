@@ -3,19 +3,30 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Lightbulb, Target, Rocket, Heart, ArrowRight, Sparkles, CheckCircle } from 'lucide-react'
+import { Lightbulb, Target, Rocket, Heart, ArrowRight, CheckCircle, Sparkles } from 'lucide-react'
 
 export default function AboutPage() {
   return (
     <main className="min-h-screen">
       <section className="relative overflow-hidden bg-hero-mesh">
-        <div className="container relative mx-auto px-4 pb-16 pt-20 md:pb-24 md:pt-28">
+        <div className="hero-spotlight pointer-events-none absolute inset-0" aria-hidden />
+        <div className="tech-orb -left-28 top-12 h-72 w-72 animate-float-soft bg-primary/25" aria-hidden />
+        <div
+          className="tech-orb right-[-15%] top-28 h-80 w-80 animate-float-soft bg-sky-400/20"
+          style={{ animationDelay: '-7s' }}
+          aria-hidden
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/35 to-transparent" />
+
+        <div className="container relative mx-auto px-4 pb-20 pt-20 md:pb-28 md:pt-28">
           <div className="mx-auto max-w-3xl text-center animate-fade-in">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
-              <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
-              <span>О компании</span>
-            </div>
-            <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground md:text-5xl">О нас</h1>
+            <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-gradient-to-r from-primary/10 to-transparent px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
+              <Sparkles className="h-3.5 w-3.5 text-premium" aria-hidden />
+              История · продукт
+            </p>
+            <h1 className="mt-6 text-balance text-display-xl font-semibold tracking-tight">
+              <span className="text-gradient-hero">О нас</span>
+            </h1>
             <p className="mt-6 text-balance text-lg text-muted-foreground md:text-xl">
               Мы пришли в клининг из опыта аренды и личных заказов — и хотели сервис без лишнего трения.
             </p>
@@ -23,16 +34,22 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="border-t border-border/60 bg-card py-16 md:py-20">
-        <div className="container mx-auto max-w-3xl px-4">
+      <section className="relative border-t border-border/40 bg-card py-20 md:py-24">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-tech-grid opacity-[0.18]" aria-hidden />
+        <div className="container relative mx-auto max-w-3xl px-4">
           <div className="space-y-8">
-            <Card className="border-border/70">
+            <Card className="card-tech-glow overflow-hidden border-border/70 transition-[box-shadow] duration-300">
+              <div className="h-1 bg-gradient-to-r from-primary via-sky-500 to-cyan-500 opacity-90" />
               <CardContent className="p-8 md:p-10">
                 <div className="mb-6 flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary ring-1 ring-primary/20">
                     <Lightbulb className="h-5 w-5" aria-hidden />
                   </div>
-                  <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Как всё начиналось</h2>
+                  <div>
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Эпизод 01</p>
+                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Как всё начиналось</h2>
+                  </div>
                 </div>
                 <div className="space-y-5 text-sm leading-relaxed text-muted-foreground md:text-base">
                   <p className="text-foreground/90">
@@ -43,8 +60,8 @@ export default function AboutPage() {
                     Заказывая уборку «для себя», мы сталкивались с тем же — длинные заявки, звонки, непрозрачные
                     условия.
                   </p>
-                  <blockquote className="rounded-xl border border-primary/15 bg-primary/5 px-5 py-4 text-foreground">
-                    <p className="font-medium leading-relaxed">
+                  <blockquote className="rounded-xl border border-primary/25 bg-primary/5 px-5 py-4 ring-1 ring-primary/10">
+                    <p className="font-medium leading-relaxed text-foreground">
                       В какой-то момент стало ясно: нам нужен сервис, которым мы сами хотели бы пользоваться каждый
                       день.
                     </p>
@@ -53,13 +70,16 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70">
+            <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
               <CardContent className="p-8 md:p-10">
                 <div className="mb-6 flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary ring-1 ring-primary/20">
                     <Target className="h-5 w-5" aria-hidden />
                   </div>
-                  <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Идея формата</h2>
+                  <div>
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Эпизод 02</p>
+                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Идея формата</h2>
+                  </div>
                 </div>
                 <div className="space-y-5 text-sm leading-relaxed text-muted-foreground md:text-base">
                   <p>
@@ -74,9 +94,9 @@ export default function AboutPage() {
                     {['Без лишних звонков', 'Без скрытых условий', 'С понятным статусом'].map((t) => (
                       <div
                         key={t}
-                        className="flex flex-col items-center gap-2 rounded-xl border border-border/80 bg-surface-muted/50 px-4 py-4 text-center"
+                        className="flex flex-col items-center gap-2 rounded-xl border border-border/80 bg-surface-muted/50 px-4 py-4 text-center ring-1 ring-border/40"
                       >
-                        <CheckCircle className="h-5 w-5 text-primary" aria-hidden />
+                        <CheckCircle className="mx-auto h-5 w-5 text-primary" aria-hidden />
                         <p className="text-xs font-medium text-foreground">{t}</p>
                       </div>
                     ))}
@@ -85,13 +105,16 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70">
+            <Card className="card-tech-glow border-border/70 transition-[box-shadow] duration-300">
               <CardContent className="p-8 md:p-10">
                 <div className="mb-6 flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary ring-1 ring-primary/20">
                     <Rocket className="h-5 w-5" aria-hidden />
                   </div>
-                  <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Продукт</h2>
+                  <div>
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Эпизод 03</p>
+                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Продукт</h2>
+                  </div>
                 </div>
                 <div className="space-y-5 text-sm leading-relaxed text-muted-foreground md:text-base">
                   <p>
@@ -105,38 +128,56 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-primary/20 bg-primary text-primary-foreground shadow-elevated-lg">
-              <CardContent className="p-8 md:p-10">
+            <Card className="relative overflow-hidden border-0 bg-cta-premium text-primary-foreground shadow-[0_24px_60px_-12px_hsl(221_62%_35%/0.45)]">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-25"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)',
+                  backgroundSize: '32px 32px',
+                }}
+                aria-hidden
+              />
+              <CardContent className="relative p-8 md:p-10">
                 <div className="mb-6 flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-foreground/15">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
                     <Heart className="h-5 w-5" aria-hidden />
                   </div>
-                  <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Миссия</h2>
+                  <div>
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-white/75">Миссия</p>
+                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Что для нас важно</h2>
+                  </div>
                 </div>
-                <p className="text-sm leading-relaxed text-primary-foreground/90 md:text-base">
+                <p className="text-sm leading-relaxed text-white/90 md:text-base">
                   Сделать чистоту доступной через технологичный, человечный сервис — без усложнения повседневности.
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          <div className="mt-14 text-center">
-            <h3 className="text-xl font-semibold tracking-tight md:text-2xl">Попробуйте сервис</h3>
-            <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
-              Оформите первый заказ и оцените качество на практике.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/orders/new">
-                <Button size="lg" className="gap-2">
-                  Заказать уборку
-                  <ArrowRight className="h-4 w-4" aria-hidden />
-                </Button>
-              </Link>
-              <Link href="/">
-                <Button size="lg" variant="outline">
-                  На главную
-                </Button>
-              </Link>
+          <div className="relative mt-16 overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-surface-muted/90 to-card px-6 py-12 text-center shadow-elevated-lg md:px-10">
+            <div className="pointer-events-none absolute inset-0 bg-tech-grid opacity-[0.25]" aria-hidden />
+            <div className="relative">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">Дальше</p>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+                <span className="text-gradient-headline">Попробуйте на деле</span>
+              </h3>
+              <p className="mx-auto mt-3 max-w-lg text-muted-foreground md:text-lg">
+                Оформите первый заказ — и оцените сервис без обязательств на годы вперёд.
+              </p>
+              <div className="mt-10 flex flex-wrap justify-center gap-4">
+                <Link href="/orders/new">
+                  <Button size="lg" variant="cta" className="h-14 gap-2 px-10 text-base">
+                    Заказать уборку
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </Button>
+                </Link>
+                <Link href="/">
+                  <Button size="lg" variant="outline" className="h-14 border-border/80 bg-background/80 px-8 backdrop-blur-sm">
+                    На главную
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
