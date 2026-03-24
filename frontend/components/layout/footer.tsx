@@ -102,8 +102,8 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href="mailto:info@qlin.ru" className="text-foreground/80 transition-colors hover:text-primary">
-                  info@qlin.ru
+                <a href="mailto:info@qlin.pro" className="text-foreground/80 transition-colors hover:text-primary">
+                  info@qlin.pro
                 </a>
               </li>
               <li>

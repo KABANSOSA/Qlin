@@ -7,7 +7,7 @@
 ## 1. Что понадобится
 
 - **Сервер (VPS)** с Ubuntu 20.04/22.04 и минимум 2 GB RAM.
-- **Домен** (например `qlin.ru`) или IP-адрес сервера.
+- **Домен** (например `qlin.pro`) или IP-адрес сервера.
 - **Docker** и **Docker Compose** на сервере.
 
 ---
@@ -134,7 +134,7 @@ curl http://localhost:3000
 sudo apt-get install -y nginx certbot python3-certbot-nginx
 ```
 
-**Пример конфига nginx** для домена `qlin.ru` (фронт и API на одном домене):
+**Пример конфига nginx** для домена `qlin.pro` (фронт и API на одном домене):
 
 Создайте файл:
 
@@ -142,19 +142,19 @@ sudo apt-get install -y nginx certbot python3-certbot-nginx
 sudo nano /etc/nginx/sites-available/qlin
 ```
 
-Содержимое (замените `qlin.ru` на свой домен):
+Содержимое (замените `qlin.pro` на свой домен):
 
 ```nginx
 # Редирект с www на без www
 server {
     listen 80;
-    server_name www.qlin.ru;
-    return 301 https://qlin.ru$request_uri;
+    server_name www.qlin.pro;
+    return 301 https://qlin.pro$request_uri;
 }
 
 server {
     listen 80;
-    server_name qlin.ru;
+    server_name qlin.pro;
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -165,10 +165,10 @@ server {
 
 server {
     listen 443 ssl http2;
-    server_name qlin.ru;
+    server_name qlin.pro;
 
-    ssl_certificate     /etc/letsencrypt/live/qlin.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/qlin.ru/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/qlin.pro/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/qlin.pro/privkey.pem;
 
     # Фронтенд
     location / {
@@ -207,15 +207,15 @@ server {
 ```bash
 sudo ln -s /etc/nginx/sites-available/qlin /etc/nginx/sites-enabled/
 sudo nginx -t
-sudo certbot --nginx -d qlin.ru -d www.qlin.ru
+sudo certbot --nginx -d qlin.pro -d www.qlin.pro
 sudo systemctl reload nginx
 ```
 
 В `.env` на сервере укажите:
 
-- **CORS_ORIGINS** = `https://qlin.ru,https://www.qlin.ru`
-- **NEXT_PUBLIC_API_URL** = `https://qlin.ru`  
-  (так как API доступен по `https://qlin.ru/api/`)
+- **CORS_ORIGINS** = `https://qlin.pro,https://www.qlin.pro`
+- **NEXT_PUBLIC_API_URL** = `https://qlin.pro`  
+  (так как API доступен по `https://qlin.pro/api/`)
 
 После смены **NEXT_PUBLIC_API_URL** пересоберите только фронтенд и перезапустите:
 
@@ -257,7 +257,27 @@ docker compose -f docker-compose.prod.yml up -d frontend
 
 ---
 
-## 9. Краткий чеклист
+## 9. Проверка, что новый фронт реально выкатился
+
+Если **curl с сервера** к API даёт 200/201, а в браузере на **всех устройствах** — «не удалось подключиться», чаще всего отдаётся **старый HTML/JS** (кэш CDN, браузера или прокси).
+
+После `git pull` и `build --no-cache frontend` проверьте:
+
+```bash
+# Образ фронта пересобран недавно
+docker compose -f docker-compose.prod.yml images qlin-frontend
+
+# Заголовки главной: должно быть no-store / no-cache для HTML (не для _next/static)
+curl -sI https://qlin.pro/ | tr -d '\r' | grep -i cache
+```
+
+В проекте в **`next.config.js`** заданы заголовки: страницы — **без кэша**, `/_next/static/` — **immutable** (долгий кэш по хешу файла).
+
+Если перед сайтом стоит **внешний CDN** (Cloudflare и т.п.) — сделайте **Purge cache** для `qlin.pro`.
+
+---
+
+## 10. Краткий чеклист
 
 - [ ] Сервер с Docker и Docker Compose
 - [ ] Репозиторий склонирован (или архив распакован)
@@ -268,3 +288,18 @@ docker compose -f docker-compose.prod.yml up -d frontend
 - [ ] В браузере открывается https://ваш-домен.ru и работает вход/регистрация
 
 После этого сайт будет доступен в общем доступе по вашему домену (или по IP и портам 3000/8000, если nginx не настраиваете).
+
+---
+
+## 11. Nginx: не кэшировать ответ фронта (опционально)
+
+Если на сервере когда‑то включали `proxy_cache` для `location /`, отключите кэш для прокси на Node:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_cache off;
+    proxy_buffering off;
+    # ... остальные proxy_set_header как выше
+}
+```

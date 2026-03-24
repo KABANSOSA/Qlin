@@ -15,7 +15,17 @@ import { useToast } from '@/hooks/use-toast'
 import { AuthPageShell } from '@/components/layout/auth-page-shell'
 
 const loginSchema = z.object({
-  phone: z.string().min(10, 'Номер телефона должен содержать минимум 10 символов'),
+  phone: z
+    .string()
+    .min(1, 'Введите телефон или email')
+    .refine(
+      (val) => {
+        const t = val.trim()
+        if (t.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)
+        return t.replace(/\D/g, '').length >= 10
+      },
+      { message: 'Некорректный телефон (от 10 цифр) или email' },
+    ),
   password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
 })
 
@@ -67,7 +77,7 @@ function LoginPageContent() {
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
             <span className="text-gradient-headline">Вход</span>
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">Телефон и пароль от вашего аккаунта</p>
+          <p className="mt-2 text-sm text-muted-foreground">Телефон или email и пароль</p>
         </div>
 
         <Card className="card-tech-glow border-border/80 shadow-elevated-lg">
@@ -86,11 +96,18 @@ function LoginPageContent() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
                 <label htmlFor="phone" className="mb-2 block text-sm font-medium text-foreground">
-                  Телефон
+                  Телефон или email
                 </label>
                 <div className="relative">
                   <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                  <Input id="phone" type="tel" placeholder="+7 (999) 123-45-67" className="pl-10" {...register('phone')} />
+                  <Input
+                    id="phone"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="+7 (999) 123-45-67 или email"
+                    className="pl-10"
+                    {...register('phone')}
+                  />
                 </div>
                 {errors.phone && (
                   <p className="mt-2 text-sm text-destructive" role="alert">

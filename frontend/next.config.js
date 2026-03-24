@@ -7,7 +7,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   eslint: {
-    // Отключаем ESLint во время сборки (для ускорения)
+    // Отключает ESLint во время сборки (для ускорения)
     ignoreDuringBuilds: true,
   },
   env: {
@@ -16,6 +16,15 @@ const nextConfig = {
   },
   images: {
     domains: ['api-maps.yandex.ru'],
+  },
+  // Долгий кэш только для хешированных чанков (имя файла меняется при каждой сборке)
+  async headers() {
+    return [
+      {
+        source: '/_next/static/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ]
   },
 }
 

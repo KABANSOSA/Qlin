@@ -2,6 +2,7 @@
 Authentication endpoints.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -61,8 +62,16 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    """Login and get access token."""
-    user = db.query(User).filter(User.phone == credentials.phone).first()
+    """Login and get access token (по телефону или email)."""
+    login_value = (credentials.phone or "").strip()
+    if "@" in login_value:
+        user = (
+            db.query(User)
+            .filter(func.lower(User.email) == login_value.lower())
+            .first()
+        )
+    else:
+        user = db.query(User).filter(User.phone == login_value).first()
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -121,8 +121,8 @@ export default function ContactsPage() {
               <CardTitle className="text-base">Email</CardTitle>
             </CardHeader>
             <CardContent>
-              <a href="mailto:info@qlin.ru" className="text-sm font-medium text-primary hover:underline">
-                info@qlin.ru
+              <a href="mailto:info@qlin.pro" className="text-sm font-medium text-primary hover:underline">
+                info@qlin.pro
               </a>
             </CardContent>
           </Card>
