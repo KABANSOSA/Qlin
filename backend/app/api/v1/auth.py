@@ -1,8 +1,9 @@
 """
 Authentication endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -23,8 +24,16 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this phone already exists",
+            detail="Пользователь с таким телефоном уже зарегистрирован",
         )
+
+    if user_data.email:
+        existing_email = db.query(User).filter(func.lower(User.email) == user_data.email.lower()).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь с таким email уже зарегистрирован",
+            )
 
     # Create user with hashed password
     try:
@@ -50,11 +59,19 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот телефон или email уже заняты. Войдите или укажите другие данные.",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error creating user: {str(e)}",
+            detail="Не удалось зарегистрировать. Попробуйте позже.",
         )
 
     return user
@@ -98,10 +115,23 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
-    """Refresh access token."""
-    payload = decode_token(refresh_token)
-    
+async def refresh_token_endpoint(request: Request, db: Session = Depends(get_db)):
+    """Refresh: JSON body {\"refresh_token\": \"...\"} — явный разбор, без query."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Ожидается JSON с полем refresh_token",
+        )
+    token_str = data.get("refresh_token") if isinstance(data, dict) else None
+    if not token_str or not isinstance(token_str, str):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="В теле запроса нужно поле refresh_token (строка)",
+        )
+    payload = decode_token(token_str)
+
     if payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

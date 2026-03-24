@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +15,7 @@ import { formatDate, formatPrice } from '@/lib/utils'
 import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 import { AppPageHero } from '@/components/layout/app-page-hero'
+import { useAuth } from '@/components/providers/auth-provider'
 
 interface Order {
   id: string
@@ -25,13 +27,18 @@ interface Order {
 }
 
 function DashboardContent() {
+  const { loading: authLoading, user } = useAuth()
+
   const { data: ordersData, isLoading: ordersLoading, error: ordersError } = useQuery<Order[]>({
-    queryKey: ['orders'],
+    queryKey: ['orders', user?.id],
     queryFn: async () => {
       const response = await api.get('/orders')
       const data = response.data
       return Array.isArray(data) ? data : []
     },
+    // Заказы только после успешного /auth/me; иначе 401 → сломанный refresh (см. бэкенд POST /refresh)
+    enabled: !!user,
+    retry: 2,
   })
 
   const orders = Array.isArray(ordersData) ? ordersData : []
@@ -43,7 +50,7 @@ function DashboardContent() {
   const totalSpent = safeOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0)
   const completionRate = totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0
 
-  if (ordersLoading) {
+  if (authLoading || ordersLoading) {
     return (
       <div className="container mx-auto max-w-7xl px-4 py-10">
         <Skeleton className="mb-8 h-9 w-56" />
@@ -58,6 +65,20 @@ function DashboardContent() {
   }
 
   if (ordersError) {
+    const hint = axios.isAxiosError(ordersError)
+      ? ordersError.response?.status
+        ? `HTTP ${ordersError.response.status}${
+            typeof ordersError.response.data === 'object' &&
+            ordersError.response.data &&
+            'detail' in ordersError.response.data
+              ? `: ${String((ordersError.response.data as { detail: unknown }).detail)}`
+              : ''
+          }`
+        : ordersError.message === 'Network Error'
+          ? 'Нет связи с сервером (проверьте сеть и API).'
+          : ordersError.message
+      : String(ordersError)
+
     return (
       <div className="flex min-h-[50vh] items-center justify-center bg-hero-mesh px-4 py-16">
         <Card className="card-tech-glow max-w-md border-border/80 text-center shadow-elevated-lg">
@@ -67,6 +88,9 @@ function DashboardContent() {
             <p className="mt-2 text-sm text-muted-foreground">
               Обновите страницу или попробуйте позже. Если ошибка повторяется, проверьте, что бэкенд запущен.
             </p>
+            {hint ? (
+              <p className="mt-3 break-words font-mono text-xs text-muted-foreground/90">{hint}</p>
+            ) : null}
             <Button className="mt-6" onClick={() => window.location.reload()} variant="cta" size="lg">
               Обновить
             </Button>

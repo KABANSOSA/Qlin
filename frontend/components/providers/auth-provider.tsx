@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import axios from 'axios'
 import { api } from '@/lib/api'
 
 interface User {
@@ -43,8 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await api.get('/auth/me')
       setUser(response.data)
     } catch (error) {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+      // Не сбрасывать сессию при сетевой ошибке / 5xx — иначе гонка с дашбордом и «Не удалось загрузить данные»
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      if (status === 401) {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+      }
     } finally {
       setLoading(false)
     }
