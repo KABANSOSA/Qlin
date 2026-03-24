@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 from app.models.order import Order
 from app.models.user import User
+from app.models.zone import Zone
 from app.services.state_machine import OrderStateMachine, OrderStatus
 from app.services.pricing_service import PricingService
 from app.services.notification_service import NotificationService
@@ -32,12 +33,36 @@ class OrderService:
                 return order_number
 
     @staticmethod
+    def resolve_zone_id(db: Session, zone_id: UUID) -> UUID:
+        """
+        Подставить реальную зону из БД, если пришла заглушка или несуществующий UUID
+        (фронт пока шлёт 00000000-... до геопривязки зон).
+        """
+        zone = db.query(Zone).filter(Zone.id == zone_id).first()
+        if zone:
+            return zone.id
+        fallback = (
+            db.query(Zone)
+            .filter(Zone.is_active.is_(True))
+            .order_by(Zone.created_at.asc())
+            .first()
+        )
+        if not fallback:
+            raise ValueError(
+                "В базе нет зон обслуживания. Запустите seed (зоны и тарифы) на сервере."
+            )
+        return fallback.id
+
+    @staticmethod
     def create_order(
         db: Session,
         customer_id: UUID,
         order_data: dict,
     ) -> Order:
         """Create a new order."""
+        order_data = dict(order_data)
+        order_data["zone_id"] = OrderService.resolve_zone_id(db, order_data["zone_id"])
+
         # Calculate price
         pricing_service = PricingService()
         price_info = pricing_service.calculate_price(

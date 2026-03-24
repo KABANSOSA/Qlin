@@ -99,14 +99,14 @@ function NewOrderPageContent() {
         return
       }
 
-      // TODO: Get zone_id from address geocoding based on coordinates
+      // zone_id-заглушка: бэкенд подставит первую активную зону из БД, пока нет геопривязки
       const orderData = {
         ...data,
-        zone_id: '00000000-0000-0000-0000-000000000000', // Placeholder - should be determined by coordinates
+        zone_id: '00000000-0000-0000-0000-000000000000',
         has_pets: false,
         has_balcony: false,
-        latitude: addressCoordinates.lat,
-        longitude: addressCoordinates.lon,
+        address_lat: addressCoordinates.lat,
+        address_lon: addressCoordinates.lon,
       }
 
       const response = await api.post('/orders', orderData)
@@ -115,7 +115,17 @@ function NewOrderPageContent() {
         router.push(`/orders/${response.data.id}`)
       }, 1000)
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || 'Ошибка создания заказа'
+      const raw = err.response?.data?.detail
+      let errorMessage = 'Ошибка создания заказа'
+      if (typeof raw === 'string') {
+        errorMessage = raw
+      } else if (Array.isArray(raw)) {
+        errorMessage = raw.map((e: { msg?: string }) => e.msg || JSON.stringify(e)).join('; ')
+      } else if (raw != null && typeof raw === 'object') {
+        errorMessage = JSON.stringify(raw)
+      } else if (err?.message === 'Network Error') {
+        errorMessage = 'Нет связи с сервером. Проверьте сеть и что API запущен.'
+      }
       setError(errorMessage)
       showError(errorMessage, { title: 'Ошибка' })
     }

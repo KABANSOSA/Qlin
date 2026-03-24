@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '@/lib/api'
 
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     checkAuth()
@@ -43,6 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await api.get('/auth/me')
       setUser(response.data)
+      // Сбросить кэш заказов после успешного /me — иначе может показываться старая ошибка
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     } catch (error) {
       // Не сбрасывать сессию при сетевой ошибке / 5xx — иначе гонка с дашбордом и «Не удалось загрузить данные»
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
@@ -63,12 +67,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const userResponse = await api.get('/auth/me')
     setUser(userResponse.data)
+    queryClient.invalidateQueries({ queryKey: ['orders'] })
   }
 
   const logout = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     setUser(null)
+    queryClient.removeQueries({ queryKey: ['orders'] })
     router.push('/')
   }
 

@@ -39,6 +39,8 @@ function DashboardContent() {
     // Заказы только после успешного /auth/me; иначе 401 → сломанный refresh (см. бэкенд POST /refresh)
     enabled: !!user,
     retry: 2,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const orders = Array.isArray(ordersData) ? ordersData : []

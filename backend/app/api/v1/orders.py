@@ -25,11 +25,17 @@ async def create_order(
 ):
     """Create a new order."""
     order_data_dict = order_data.model_dump()
-    order = OrderService.create_order(
-        db=db,
-        customer_id=current_user.id,
-        order_data=order_data_dict,
-    )
+    try:
+        order = OrderService.create_order(
+            db=db,
+            customer_id=current_user.id,
+            order_data=order_data_dict,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
     return order
 
 
