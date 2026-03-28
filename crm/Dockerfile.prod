@@ -1,16 +1,20 @@
-FROM node:18-alpine
+# Node 20+ — требование eslint/зависимостей (EBADENGINE на 18.x)
+FROM node:20-alpine
 
 RUN apk add --no-cache libc6-compat ca-certificates && update-ca-certificates
 
 WORKDIR /app
 
-ENV NODE_OPTIONS="--max-old-space-size=2048"
+# На VPS с 1–2 GB RAM при «Killed»/exit 1 на npm ci — снизьте до 1024
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 COPY package.json package-lock.json ./
 RUN npm config set fetch-timeout 300000 && \
-    npm config set fetch-retries 5
+    npm config set fetch-retries 5 && \
+    npm config set fund false
 
-RUN npm ci --legacy-peer-deps --no-audit --no-fund
+RUN npm ci --legacy-peer-deps --no-audit --no-fund || \
+    (echo "npm ci failed, retry npm install" && npm install --legacy-peer-deps --no-audit --no-fund)
 
 COPY . .
 
