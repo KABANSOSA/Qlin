@@ -9,12 +9,12 @@ from app.db.database import get_db
 from app.core.dependencies import get_current_admin
 from app.models.user import User
 from app.models.order import Order
-from app.schemas.order import OrderResponse
+from app.schemas.order import OrderResponse, OrderAdminResponse
 
 router = APIRouter()
 
 
-@router.get("/orders", response_model=List[OrderResponse])
+@router.get("/orders", response_model=List[OrderAdminResponse])
 async def get_all_orders(
     status: str = Query(None),
     limit: int = Query(50, ge=1, le=100),
@@ -22,13 +22,27 @@ async def get_all_orders(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Get all orders (admin only)."""
-    query = db.query(Order)
+    """Get all orders (admin only), с телефоном и email клиента для CRM."""
+    query = (
+        db.query(Order, User.phone, User.email)
+        .join(User, Order.customer_id == User.id)
+    )
     if status:
         query = query.filter(Order.status == status)
-    
-    orders = query.order_by(Order.created_at.desc()).limit(limit).offset(offset).all()
-    return orders
+
+    rows = query.order_by(Order.created_at.desc()).limit(limit).offset(offset).all()
+    out: List[OrderAdminResponse] = []
+    for order, phone, email in rows:
+        base = OrderResponse.model_validate(order)
+        out.append(
+            OrderAdminResponse(
+                **base.model_dump(),
+                customer_phone=phone,
+                customer_email=email,
+                special_instructions=order.special_instructions,
+            )
+        )
+    return out
 
 
 @router.get("/users", response_model=List[dict])

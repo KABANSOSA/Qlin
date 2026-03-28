@@ -70,3 +70,11 @@ class OrderResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class OrderAdminResponse(OrderResponse):
+    """Расширенный заказ для CRM/админки: контакт клиента и комментарий."""
+
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    special_instructions: Optional[str] = None

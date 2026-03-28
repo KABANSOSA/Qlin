@@ -99,6 +99,24 @@ services:
     ports:
       - "3000:3000"
 
+  crm:
+    build:
+      context: ./crm
+      dockerfile: Dockerfile.prod
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://qlin.pro}
+        - NEXT_PUBLIC_PUBLIC_SITE_URL=${NEXT_PUBLIC_PUBLIC_SITE_URL:-https://qlin.pro}
+    container_name: qlin_crm
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=1536
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - qlin_network
+    ports:
+      - "3002:3000"
+
 volumes:
   postgres_data:
   redis_data:

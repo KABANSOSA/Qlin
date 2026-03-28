@@ -1,0 +1,33 @@
+FROM node:18-alpine
+
+RUN apk add --no-cache libc6-compat ca-certificates && update-ca-certificates
+
+WORKDIR /app
+
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
+COPY package.json package-lock.json ./
+RUN npm config set fetch-timeout 300000 && \
+    npm config set fetch-retries 5
+
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
+
+COPY . .
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+ARG NEXT_PUBLIC_API_URL=https://qlin.pro
+ARG NEXT_PUBLIC_PUBLIC_SITE_URL=https://qlin.pro
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_PUBLIC_SITE_URL=$NEXT_PUBLIC_PUBLIC_SITE_URL
+
+RUN npm run build
+
+RUN cp -r .next/static .next/standalone/.next/static 2>/dev/null || true
+RUN mkdir -p .next/standalone/public
+
+EXPOSE 3000
+
+WORKDIR /app/.next/standalone
+CMD ["node", "server.js"]
