@@ -1,9 +1,9 @@
 """
 Application configuration using Pydantic settings.
 """
-from typing import List, Union
+from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     REDIS_CACHE_TTL: int = 3600
+
+    # Публичный URL сайта (ссылки в письмах сброса пароля)
+    PUBLIC_SITE_URL: str = Field(default="https://qlin.pro", env="PUBLIC_SITE_URL")
+
+    # SMTP — для восстановления пароля (если не задано SMTP_HOST — /forgot-password вернёт 503)
+    SMTP_HOST: Optional[str] = Field(default=None, env="SMTP_HOST")
+    SMTP_PORT: int = Field(default=587, env="SMTP_PORT")
+    SMTP_USER: Optional[str] = Field(default=None, env="SMTP_USER")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, env="SMTP_PASSWORD")
+    SMTP_FROM: Optional[str] = Field(default=None, env="SMTP_FROM")
+    SMTP_USE_TLS: bool = Field(default=True, env="SMTP_USE_TLS")
 
     # CORS
     CORS_ORIGINS: str = Field(

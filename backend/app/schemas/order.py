@@ -65,6 +65,7 @@ class OrderResponse(BaseModel):
     total_price: Decimal
     status: str
     payment_status: str
+    payment_method: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

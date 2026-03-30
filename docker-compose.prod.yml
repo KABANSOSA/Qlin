@@ -45,6 +45,13 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://qlin.pro,https://www.qlin.pro}
+      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-https://qlin.pro}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
     depends_on:
       postgres:
         condition: service_healthy

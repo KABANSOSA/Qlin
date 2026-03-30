@@ -1,19 +1,23 @@
 """
 Authentication endpoints.
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.core.config import settings
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse
-from app.schemas.auth import Token
+from app.schemas.auth import Token, ForgotPasswordRequest, ResetPasswordRequest
+from app.services.password_reset_service import request_password_reset, reset_password_with_token
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -112,6 +116,42 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "refresh_token": refresh_token,
         "token_type": "bearer",
     }
+
+
+@router.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Отправка письма со ссылкой сброса пароля (по email).
+    Ответ одинаковый независимо от того, есть ли пользователь — не раскрываем email в БД.
+    """
+    if not settings.SMTP_HOST or not settings.SMTP_FROM:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Отправка писем не настроена на сервере. Обратитесь в поддержку.",
+        )
+    try:
+        request_password_reset(db, body.email)
+    except Exception:
+        logger.exception("forgot_password: send failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось отправить письмо. Попробуйте позже.",
+        )
+    return {
+        "message": "Если указанный email зарегистрирован, мы отправили ссылку для сброса пароля.",
+    }
+
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Установка нового пароля по одноразовой ссылке из письма."""
+    ok = reset_password_with_token(db, body.token, body.new_password)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ссылка недействительна или истекла. Запросите сброс пароля снова.",
+        )
+    return {"message": "Пароль успешно изменён. Можно войти."}
 
 
 @router.post("/refresh", response_model=Token)

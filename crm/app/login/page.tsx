@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import axios from 'axios'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,12 @@ export default function LoginPage() {
       router.push('/')
       router.refresh()
     } catch (err: unknown) {
+      if (axios.isAxiosError(err) && !err.response) {
+        setError(
+          'Нет ответа от API (часто CORS: добавьте в CORS_ORIGINS бэкенда origin этой страницы, например http://89.23.97.28:3002, или откройте CRM по домену crm.qlin.pro).'
+        )
+        return
+      }
       const ax = err as { response?: { data?: { detail?: string | unknown } } }
       const d = ax.response?.data?.detail
       setError(

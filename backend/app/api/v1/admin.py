@@ -1,14 +1,18 @@
 """
 Admin endpoints.
 """
-from typing import List
+from typing import List, Dict, Any
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.dependencies import get_current_admin
 from app.models.user import User
 from app.models.order import Order
+from app.models.payment import Payment
 from app.schemas.order import OrderResponse, OrderAdminResponse
 
 router = APIRouter()
@@ -45,18 +49,105 @@ async def get_all_orders(
     return out
 
 
+@router.get("/stats", response_model=Dict[str, Any])
+async def get_admin_stats(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Сводка для CRM: клиенты, заказы по статусам, выручка (оплаченные заказы)."""
+    customers = db.query(func.count(User.id)).filter(User.role == "customer").scalar() or 0
+    orders_total = db.query(func.count(Order.id)).scalar() or 0
+    status_rows = db.query(Order.status, func.count(Order.id)).group_by(Order.status).all()
+    by_status = {row[0]: row[1] for row in status_rows}
+    paid_sum = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(Order.payment_status == "paid")
+        .scalar()
+    )
+    if paid_sum is None:
+        paid_sum = Decimal("0")
+    return {
+        "customers": int(customers),
+        "orders_total": int(orders_total),
+        "by_status": by_status,
+        "revenue_paid_rub": float(paid_sum),
+    }
+
+
 @router.get("/users", response_model=List[dict])
 async def get_all_users(
     role: str = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Get all users (admin only)."""
+    """Список пользователей для CRM (контакты): email, имя, число заказов у клиентов."""
     query = db.query(User)
     if role:
         query = query.filter(User.role == role)
-    
-    users = query.limit(limit).offset(offset).all()
-    return [{"id": str(u.id), "phone": u.phone, "role": u.role, "is_active": u.is_active} for u in users]
+
+    users = query.order_by(User.created_at.desc()).limit(limit).offset(offset).all()
+    customer_ids = [u.id for u in users if u.role == "customer"]
+    counts: Dict[str, int] = {}
+    if customer_ids:
+        rows = (
+            db.query(Order.customer_id, func.count(Order.id))
+            .filter(Order.customer_id.in_(customer_ids))
+            .group_by(Order.customer_id)
+            .all()
+        )
+        counts = {str(r[0]): int(r[1]) for r in rows}
+
+    out = []
+    for u in users:
+        uid = str(u.id)
+        item = {
+            "id": uid,
+            "phone": u.phone,
+            "email": u.email,
+            "first_name": u.first_name,
+            "role": u.role,
+            "is_active": u.is_active,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        if u.role == "customer":
+            item["orders_count"] = counts.get(uid, 0)
+        out.append(item)
+    return out
+
+
+@router.get("/payments", response_model=List[dict])
+async def list_payment_records(
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Платежи из таблицы payments с номером заказа (если записей нет — пустой список)."""
+    rows = (
+        db.query(Payment, Order.order_number, User.phone, User.email)
+        .join(Order, Payment.order_id == Order.id)
+        .join(User, Order.customer_id == User.id)
+        .order_by(Payment.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+    result = []
+    for pay, order_number, phone, email in rows:
+        result.append(
+            {
+                "id": str(pay.id),
+                "order_number": order_number,
+                "amount": float(pay.amount),
+                "currency": pay.currency,
+                "status": pay.status,
+                "payment_method": pay.payment_method,
+                "provider_payment_id": pay.provider_payment_id,
+                "created_at": pay.created_at.isoformat() if pay.created_at else None,
+                "customer_phone": phone,
+                "customer_email": email,
+            }
+        )
+    return result
