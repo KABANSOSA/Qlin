@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { api } from '@/lib/api'
 import { CrmShell } from '@/components/crm-shell'
+import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
 
 interface CrmOrder {
@@ -28,7 +29,7 @@ const COLUMNS: { key: string; label: string }[] = [
 ]
 
 export default function CrmPipelinePage() {
-  const { loading, user } = useCrmAccess()
+  const { loading, user, error, retry } = useCrmAccess()
 
   const { data: orders, refetch, isFetching, isLoading } = useQuery({
     queryKey: ['admin-orders-pipeline'],
@@ -51,12 +52,8 @@ export default function CrmPipelinePage() {
     return g
   }, [orders])
 
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    )
+  if (loading || error || !user) {
+    return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
 
   return (

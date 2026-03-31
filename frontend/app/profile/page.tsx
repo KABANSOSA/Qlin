@@ -1,7 +1,6 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ProtectedRoute } from '@/components/protected-route'
+import { useAuth } from '@/components/providers/auth-provider'
 import {
   User,
   Mail,
@@ -40,24 +40,31 @@ const profileSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>
 
 function ProfilePageContent() {
-  const router = useRouter()
+  const { loading: authLoading, user: authUser } = useAuth()
   const [success, setSuccess] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
-  const { data: user, isLoading, refetch } = useQuery({
-    queryKey: ['user', 'me'],
+  const { data: user, isLoading: profileLoading, isError: profileError, refetch } = useQuery({
+    queryKey: ['user', 'me', authUser?.id],
     queryFn: async () => {
       const response = await api.get('/users/me')
       return response.data
     },
+    enabled: !!authUser,
+    staleTime: 30_000,
+    retry: 2,
   })
 
   const { data: orders } = useQuery({
-    queryKey: ['orders'],
+    queryKey: ['orders', authUser?.id],
     queryFn: async () => {
       const response = await api.get('/orders')
-      return response.data
+      const data = response.data
+      return Array.isArray(data) ? data : []
     },
+    enabled: !!authUser,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const {
@@ -110,7 +117,7 @@ function ProfilePageContent() {
   const completionRate = stats.total_orders > 0 ? (stats.completed_orders / stats.total_orders) * 100 : 0
   const memberSince = user ? new Date(user.created_at).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long' }) : ''
 
-  if (isLoading) {
+  if (authLoading || profileLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center bg-background">
         <div className="text-center">
@@ -121,9 +128,19 @@ function ProfilePageContent() {
     )
   }
 
-  if (!user) {
-    router.push('/auth/login')
-    return null
+  if (profileError || !user) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center bg-background px-4">
+        <Card className="card-tech-glow max-w-md border-border/80 text-center shadow-elevated-lg">
+          <CardContent className="p-8">
+            <p className="text-sm text-muted-foreground">Не удалось загрузить профиль.</p>
+            <Button className="mt-6" type="button" variant="cta" onClick={() => refetch()}>
+              Повторить
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   const displayName =

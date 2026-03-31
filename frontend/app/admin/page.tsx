@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDate, formatPrice } from '@/lib/utils'
@@ -9,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 import { LayoutDashboard } from 'lucide-react'
 import { AppPageHero } from '@/components/layout/app-page-hero'
+import { useAuth } from '@/components/providers/auth-provider'
+import { Button } from '@/components/ui/button'
 
 interface Order {
   id: string
@@ -23,13 +26,56 @@ interface Order {
 }
 
 function AdminPageContent() {
-  const { data: orders, isLoading } = useQuery<Order[]>({
-    queryKey: ['admin-orders'],
+  const { loading: authLoading, user } = useAuth()
+
+  const { data: orders, isLoading, error, refetch } = useQuery<Order[]>({
+    queryKey: ['admin-orders', user?.id],
     queryFn: async () => {
       const response = await api.get('/admin/orders')
-      return response.data
+      const data = response.data
+      return Array.isArray(data) ? data : []
     },
+    enabled: !!user && user.role === 'admin',
+    retry: 1,
   })
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto max-w-7xl px-4 py-10">
+          <Skeleton className="h-9 w-64" />
+          <div className="mt-8 grid gap-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-36 rounded-2xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  if (user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto max-w-7xl px-4 py-10">
+          <Card className="card-tech-glow max-w-lg border-border/80 text-center shadow-elevated-lg">
+            <CardContent className="p-10">
+              <p className="text-sm text-muted-foreground">Эта страница доступна только администраторам.</p>
+              <Link href="/dashboard" className="mt-6 inline-block">
+                <Button variant="cta" size="lg">
+                  В личный кабинет
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -41,6 +87,23 @@ function AdminPageContent() {
               <Skeleton key={i} className="h-36 rounded-2xl" />
             ))}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto max-w-7xl px-4 py-10">
+          <Card className="card-tech-glow max-w-md border-border/80 text-center shadow-elevated-lg">
+            <CardContent className="p-10">
+              <p className="text-sm text-muted-foreground">Не удалось загрузить заказы.</p>
+              <Button className="mt-6" type="button" variant="cta" onClick={() => refetch()}>
+                Повторить
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     )

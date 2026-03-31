@@ -1,24 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { useAuth } from '@/components/providers/auth-provider'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const { loading: authLoading, user } = useAuth()
 
   useEffect(() => {
+    if (authLoading) return
+    if (typeof window === 'undefined') return
     const token = localStorage.getItem('access_token')
-    if (!token) {
+    if (!user && !token) {
       const returnUrl = pathname ? `${pathname}` : '/dashboard'
-      router.push(`/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`)
-    } else {
-      setIsAuthenticated(true)
+      router.replace(`/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`)
     }
-  }, [router, pathname])
+  }, [authLoading, user, pathname, router])
 
-  if (isAuthenticated === null) {
+  if (authLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center px-4 py-16">
         <div className="flex flex-col items-center gap-3 text-center">
@@ -29,8 +31,23 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!isAuthenticated) {
-    return null
+  if (!user) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    if (!token) {
+      return null
+    }
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center bg-hero-mesh px-4 py-16">
+        <div className="max-w-md rounded-2xl border border-border/80 bg-card p-8 text-center shadow-elevated-lg">
+          <p className="text-sm text-muted-foreground">
+            Не удалось загрузить сессию. Проверьте соединение и обновите страницу.
+          </p>
+          <Button className="mt-6" type="button" variant="cta" size="lg" onClick={() => window.location.reload()}>
+            Обновить
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>

@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import axios from 'axios'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatPrice } from '@/lib/utils'
 import Link from 'next/link'
 import { ProtectedRoute } from '@/components/protected-route'
+import { useAuth } from '@/components/providers/auth-provider'
 import { ArrowLeft, MapPin } from 'lucide-react'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 
@@ -26,16 +28,21 @@ function getCleaningTypeLabel(value: string) {
 function OrderDetailPageContent() {
   const params = useParams()
   const orderId = params.id as string
+  const { loading: authLoading, user } = useAuth()
 
   const { data: order, isLoading, error, refetch } = useQuery({
-    queryKey: ['order', orderId],
+    queryKey: ['order', orderId, user?.id],
     queryFn: async () => {
       const response = await api.get(`/orders/${orderId}`)
       return response.data
     },
+    enabled: !!user && !!orderId,
+    retry: 2,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto max-w-5xl px-4 py-10">
@@ -48,13 +55,21 @@ function OrderDetailPageContent() {
   }
 
   if (error || !order) {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined
+    const hint =
+      status === 403
+        ? 'Нет доступа к этому заказу.'
+        : status === 404
+          ? 'Заказ не найден.'
+          : 'Не удалось загрузить или неверный идентификатор.'
+
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto max-w-5xl px-4 py-10">
           <Card className="card-tech-glow border-border/80">
             <CardContent className="p-10 text-center md:p-12">
-              <h3 className="text-lg font-semibold">Заказ не найден</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Не удалось загрузить или неверный идентификатор.</p>
+              <h3 className="text-lg font-semibold">{status === 404 ? 'Заказ не найден' : 'Не удалось открыть заказ'}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <Button onClick={() => refetch()} variant="cta">
                   Повторить

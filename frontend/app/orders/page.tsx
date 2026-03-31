@@ -11,6 +11,7 @@ import { ProtectedRoute } from '@/components/protected-route'
 import { Plus, ChevronRight } from 'lucide-react'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 import { AppPageHero } from '@/components/layout/app-page-hero'
+import { useAuth } from '@/components/providers/auth-provider'
 
 interface Order {
   id: string
@@ -24,15 +25,22 @@ interface Order {
 }
 
 function OrdersPageContent() {
-  const { data: orders, isLoading, error, refetch } = useQuery<Order[]>({
-    queryKey: ['orders'],
+  const { loading: authLoading, user } = useAuth()
+
+  const { data: orders, isLoading: ordersLoading, error, refetch } = useQuery<Order[]>({
+    queryKey: ['orders', user?.id],
     queryFn: async () => {
       const response = await api.get('/orders')
-      return response.data
+      const data = response.data
+      return Array.isArray(data) ? data : []
     },
+    enabled: !!user,
+    retry: 2,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
-  if (isLoading) {
+  if (authLoading || ordersLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto max-w-7xl px-4 py-10">

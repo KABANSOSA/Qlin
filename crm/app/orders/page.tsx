@@ -7,6 +7,7 @@ import { ru } from 'date-fns/locale'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { CrmShell } from '@/components/crm-shell'
+import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
 
 interface CrmOrder {
@@ -57,7 +58,7 @@ function statusClass(s: string) {
 }
 
 export default function CrmOrdersPage() {
-  const { loading, user } = useCrmAccess()
+  const { loading, user, error, retry } = useCrmAccess()
   const [status, setStatus] = useState('')
 
   const {
@@ -78,12 +79,8 @@ export default function CrmOrdersPage() {
     staleTime: 30_000,
   })
 
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    )
+  if (loading || error || !user) {
+    return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
 
   return (

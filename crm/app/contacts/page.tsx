@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { CrmShell } from '@/components/crm-shell'
+import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
 
 interface ContactRow {
@@ -17,7 +18,7 @@ interface ContactRow {
 }
 
 export default function CrmContactsPage() {
-  const { loading, user } = useCrmAccess()
+  const { loading, user, error: accessError, retry } = useCrmAccess()
 
   const { data: contacts, refetch, isFetching, isLoading, error } = useQuery({
     queryKey: ['admin-users-customers'],
@@ -29,12 +30,8 @@ export default function CrmContactsPage() {
     staleTime: 30_000,
   })
 
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    )
+  if (loading || accessError || !user) {
+    return <CrmAccessBarrier loading={loading} user={user} error={accessError} retry={retry} />
   }
 
   return (
