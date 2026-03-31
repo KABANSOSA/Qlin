@@ -3,8 +3,9 @@ Admin endpoints.
 """
 from typing import List, Dict, Any
 from decimal import Decimal
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -13,7 +14,9 @@ from app.core.dependencies import get_current_admin
 from app.models.user import User
 from app.models.order import Order
 from app.models.payment import Payment
-from app.schemas.order import OrderResponse, OrderAdminResponse
+from app.models.cleaner import Cleaner
+from app.schemas.order import OrderResponse, OrderAdminResponse, AssignOrderBody
+from app.services.order_service import OrderService
 
 router = APIRouter()
 
@@ -47,6 +50,59 @@ async def get_all_orders(
             )
         )
     return out
+
+
+@router.get("/cleaners", response_model=List[dict])
+async def list_cleaners_for_dispatch(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Уборщики с профилем — для назначения заказа в CRM."""
+    rows = (
+        db.query(User, Cleaner)
+        .join(Cleaner, Cleaner.user_id == User.id)
+        .filter(User.role == "cleaner", User.is_active.is_(True))
+        .order_by(User.phone.asc())
+        .all()
+    )
+    out = []
+    for u, c in rows:
+        out.append(
+            {
+                "user_id": str(u.id),
+                "phone": u.phone,
+                "first_name": u.first_name or "",
+                "is_available": c.is_available,
+                "rating": float(c.rating) if c.rating is not None else None,
+            }
+        )
+    return out
+
+
+@router.post("/orders/{order_id}/assign")
+async def admin_assign_order(
+    order_id: UUID,
+    body: AssignOrderBody,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Назначить исполнителя: заказ **pending** → **assigned**, `cleaner_id` на заказе.
+    Дальше уборщик видит заказ в своих; клиенту — уведомление (если настроено).
+    """
+    cleaner = db.query(User).filter(User.id == body.cleaner_id, User.role == "cleaner").first()
+    if not cleaner:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь не найден или не является уборщиком",
+        )
+    ok = OrderService.assign_order(db, order_id, body.cleaner_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Заказ не найден, уже назначен или занят другим процессом",
+        )
+    return {"status": "assigned", "order_id": str(order_id), "cleaner_id": str(body.cleaner_id)}
 
 
 @router.get("/stats", response_model=Dict[str, Any])

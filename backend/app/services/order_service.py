@@ -193,8 +193,7 @@ class OrderService:
             )
 
             if success:
-                db.commit()
-                # Notify customer
+                # commit уже внутри OrderStateMachine.transition
                 notification_service = NotificationService()
                 notification_service.notify_order_assigned(db, order)
                 return True

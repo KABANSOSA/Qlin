@@ -41,6 +41,12 @@ class OrderStatusUpdate(BaseModel):
     metadata: Optional[dict] = None
 
 
+class AssignOrderBody(BaseModel):
+    """Назначение уборщика на заказ (CRM / админ)."""
+
+    cleaner_id: UUID
+
+
 class OrderResponse(BaseModel):
     """Schema for order response."""
     id: UUID
