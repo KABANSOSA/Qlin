@@ -14,10 +14,12 @@ from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from app.services.order_service import OrderService
 from app.services.state_machine import OrderStateMachine
 
+# Явные пути /orders/... без prefix на роутере — иначе "/" + include даёт /orders/ и 307 на URL без завершающего слэша
 router = APIRouter(redirect_slashes=False)
 
 
-@router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/orders/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_order(
     order_data: OrderCreate,
     current_user: User = Depends(get_current_active_customer),
@@ -39,7 +41,8 @@ async def create_order(
     return order
 
 
-@router.get("/", response_model=List[OrderResponse])
+@router.get("/orders", response_model=List[OrderResponse])
+@router.get("/orders/", response_model=List[OrderResponse])
 async def get_orders(
     status: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=100),
@@ -59,7 +62,7 @@ async def get_orders(
     return orders
 
 
-@router.get("/{order_id}", response_model=OrderResponse)
+@router.get("/orders/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -88,7 +91,7 @@ async def get_order(
     return order
 
 
-@router.patch("/{order_id}", response_model=OrderResponse)
+@router.patch("/orders/{order_id}", response_model=OrderResponse)
 async def update_order(
     order_id: UUID,
     order_update: OrderUpdate,
@@ -126,7 +129,7 @@ async def update_order(
     return order
 
 
-@router.post("/{order_id}/cancel", response_model=OrderResponse)
+@router.post("/orders/{order_id}/cancel", response_model=OrderResponse)
 async def cancel_order(
     order_id: UUID,
     current_user: User = Depends(get_current_user),
