@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -16,6 +17,8 @@ from app.models.order import Order
 from app.models.payment import Payment
 from app.models.cleaner import Cleaner
 from app.schemas.order import OrderResponse, OrderAdminResponse, AssignOrderBody
+from app.schemas.cleaner_admin import AdminCreateCleanerBody
+from app.core.security import get_password_hash
 from app.services.order_service import OrderService
 
 router = APIRouter()
@@ -77,6 +80,51 @@ async def list_cleaners_for_dispatch(
             }
         )
     return out
+
+
+@router.post("/cleaners", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def admin_create_cleaner(
+    body: AdminCreateCleanerBody,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Завести уборщика: `users` с ролью `cleaner` + строка в `cleaners`.
+    Без этого `GET /admin/cleaners` пустой и в CRM не из кого выбирать.
+    Пароль опционален — без него вход по паролю недоступен (например, позже Telegram).
+    """
+    if db.query(User).filter(User.phone == body.phone).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь с таким телефоном уже есть",
+        )
+    pwd = get_password_hash(body.password) if body.password else None
+    user = User(
+        phone=body.phone,
+        first_name=body.first_name,
+        role="cleaner",
+        is_active=True,
+        password_hash=pwd,
+    )
+    db.add(user)
+    db.flush()
+    profile = Cleaner(user_id=user.id)
+    db.add(profile)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось создать: конфликт данных (телефон занят?)",
+        )
+    db.refresh(user)
+    return {
+        "user_id": str(user.id),
+        "phone": user.phone,
+        "first_name": user.first_name or "",
+        "role": user.role,
+    }
 
 
 @router.post("/orders/{order_id}/assign")

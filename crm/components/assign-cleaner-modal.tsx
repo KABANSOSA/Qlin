@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -88,8 +89,11 @@ export function AssignCleanerModal({ order, userId, onClose, onAssigned }: Assig
 
         {cleaners.length === 0 ? (
           <p className="mt-4 text-sm text-amber-800">
-            Нет уборщиков с профилем. Нужен пользователь с ролью <code className="rounded bg-muted px-1">cleaner</code> и
-            запись в таблице <code className="rounded bg-muted px-1">cleaners</code>.
+            Пока некого назначить. Добавьте клинера в разделе{' '}
+            <Link href="/cleaners" className="font-medium underline underline-offset-2">
+              Клинеры
+            </Link>
+            .
           </p>
         ) : (
           <label className="mt-4 block text-sm font-medium">
