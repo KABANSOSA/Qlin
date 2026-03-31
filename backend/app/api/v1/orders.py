@@ -14,7 +14,7 @@ from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from app.services.order_service import OrderService
 from app.services.state_machine import OrderStateMachine
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 
 @router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
