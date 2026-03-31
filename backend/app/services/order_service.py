@@ -104,11 +104,12 @@ class OrderService:
         db.add(order)
         db.commit()
         db.refresh(order)
+        order_pk = order.id
 
         # Create initial event
         from app.models.order_event import OrderEvent
         event = OrderEvent(
-            order_id=order.id,
+            order_id=order_pk,
             event_type="order_created",
             from_status=None,
             to_status=OrderStatus.PENDING.value,
@@ -122,7 +123,9 @@ class OrderService:
         notification_service = NotificationService()
         notification_service.notify_cleaners_new_order(db, order)
 
-        return order
+        # После нескольких commit/rollback сессия может «испортить» экземпляр — читаем заказ заново.
+        reloaded = db.query(Order).filter(Order.id == order_pk).one()
+        return reloaded
 
     @staticmethod
     def assign_order(
