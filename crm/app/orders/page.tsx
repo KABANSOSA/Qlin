@@ -11,6 +11,7 @@ import { CrmShell } from '@/components/crm-shell'
 import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
 import { getPublicOrderUrl } from '@/lib/public-site'
+import { AssignCleanerModal, type AssignOrderMinimal } from '@/components/assign-cleaner-modal'
 
 interface CrmOrder {
   id: string
@@ -25,6 +26,7 @@ interface CrmOrder {
   customer_email?: string | null
   special_instructions?: string | null
   created_at: string
+  cleaner_id?: string | null
 }
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -62,6 +64,7 @@ function statusClass(s: string) {
 export default function CrmOrdersPage() {
   const { loading, user, error, retry } = useCrmAccess()
   const [status, setStatus] = useState('')
+  const [assignOrder, setAssignOrder] = useState<AssignOrderMinimal | null>(null)
 
   const {
     data: orders,
@@ -89,7 +92,12 @@ export default function CrmOrdersPage() {
     <CrmShell mePhone={user.phone} onRefresh={() => refetch()} isFetching={isFetching}>
       <main className="mx-auto max-w-7xl px-4 py-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-bold tracking-tight">Заявки</h1>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Заявки</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Для статуса «Ожидает» назначьте клинера — заказ перейдёт в «Назначен».
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">Статус</label>
             <select
@@ -167,6 +175,26 @@ export default function CrmOrdersPage() {
                     Открыть на сайте
                     <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
+                  {o.status === 'pending' && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAssignOrder({
+                          id: o.id,
+                          order_number: o.order_number,
+                          address: o.address,
+                        })
+                      }
+                      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-95"
+                    >
+                      Назначить клинера
+                    </button>
+                  )}
+                  {o.cleaner_id && o.status !== 'pending' && (
+                    <span className="text-xs text-muted-foreground">
+                      Исполнитель: <span className="font-mono text-foreground">{o.cleaner_id.slice(0, 8)}…</span>
+                    </span>
+                  )}
                 </div>
                 <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
                   <div>
@@ -194,6 +222,13 @@ export default function CrmOrdersPage() {
           </ul>
         )}
       </main>
+
+      <AssignCleanerModal
+        order={assignOrder}
+        userId={user?.id}
+        onClose={() => setAssignOrder(null)}
+        onAssigned={() => refetch()}
+      />
     </CrmShell>
   )
 }

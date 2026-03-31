@@ -1,13 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { api } from '@/lib/api'
 import { CrmShell } from '@/components/crm-shell'
 import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
+import { AssignCleanerModal, type AssignOrderMinimal } from '@/components/assign-cleaner-modal'
 
 interface CrmOrder {
   id: string
@@ -18,15 +19,6 @@ interface CrmOrder {
   payment_status: string
   customer_phone?: string | null
   scheduled_at: string
-  cleaner_id?: string | null
-}
-
-interface CleanerRow {
-  user_id: string
-  phone: string
-  first_name: string
-  is_available: boolean
-  rating: number | null
 }
 
 const COLUMNS: { key: string; label: string }[] = [
@@ -39,9 +31,7 @@ const COLUMNS: { key: string; label: string }[] = [
 
 export default function CrmPipelinePage() {
   const { loading, user, error, retry } = useCrmAccess()
-  const [assignOrder, setAssignOrder] = useState<CrmOrder | null>(null)
-  const [pickCleanerId, setPickCleanerId] = useState('')
-  const [assignErr, setAssignErr] = useState<string | null>(null)
+  const [assignOrder, setAssignOrder] = useState<AssignOrderMinimal | null>(null)
 
   const {
     data: orders,
@@ -59,33 +49,6 @@ export default function CrmPipelinePage() {
     staleTime: 20_000,
   })
 
-  const { data: cleaners = [] } = useQuery({
-    queryKey: ['admin-cleaners', user?.id],
-    queryFn: async () => {
-      const { data } = await api.get<CleanerRow[]>('/admin/cleaners')
-      return data
-    },
-    enabled: !!user,
-    staleTime: 60_000,
-  })
-
-  const assignMutation = useMutation({
-    mutationFn: async ({ orderId, cleanerId }: { orderId: string; cleanerId: string }) => {
-      await api.post(`/admin/orders/${orderId}/assign`, { cleaner_id: cleanerId })
-    },
-    onSuccess: () => {
-      setAssignOrder(null)
-      setPickCleanerId('')
-      setAssignErr(null)
-      refetch()
-    },
-    onError: (e: unknown) => {
-      const ax = e as { response?: { data?: { detail?: unknown } } }
-      const d = ax.response?.data?.detail
-      setAssignErr(typeof d === 'string' ? d : 'Не удалось назначить исполнителя')
-    },
-  })
-
   const grouped = useMemo(() => {
     const g: Record<string, CrmOrder[]> = {}
     for (const col of COLUMNS) g[col.key] = []
@@ -97,22 +60,6 @@ export default function CrmPipelinePage() {
     return g
   }, [orders])
 
-  const openAssign = (o: CrmOrder) => {
-    setAssignErr(null)
-    setPickCleanerId('')
-    setAssignOrder(o)
-  }
-
-  const submitAssign = () => {
-    if (!assignOrder) return
-    if (!pickCleanerId) {
-      setAssignErr('Выберите исполнителя из списка')
-      return
-    }
-    setAssignErr(null)
-    assignMutation.mutate({ orderId: assignOrder.id, cleanerId: pickCleanerId })
-  }
-
   if (loading || error || !user) {
     return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
@@ -122,8 +69,8 @@ export default function CrmPipelinePage() {
       <main className="mx-auto max-w-[1600px] px-4 py-8">
         <h1 className="text-xl font-bold tracking-tight">Воронка</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Новые заявки попадают в колонку «Новый». Менеджер назначает уборщика — заказ переходит в «Назначен»; дальше
-          статусы «В работе» / «Завершён» выставляются по мере готовности процессов (API/бот).
+          Новые заявки — колонка «Новый». Назначьте клинера кнопкой ниже; заказ перейдёт в «Назначен». То же можно сделать
+          на странице <strong>Заявки</strong>.
         </p>
 
         {ordersError && (
@@ -177,10 +124,16 @@ export default function CrmPipelinePage() {
                       {col.key === 'pending' && o.status === 'pending' && (
                         <button
                           type="button"
-                          onClick={() => openAssign(o)}
+                          onClick={() =>
+                            setAssignOrder({
+                              id: o.id,
+                              order_number: o.order_number,
+                              address: o.address,
+                            })
+                          }
                           className="mt-2 w-full rounded-lg bg-primary py-1.5 text-[11px] font-semibold text-primary-foreground hover:opacity-95"
                         >
-                          Назначить исполнителя
+                          Назначить клинера
                         </button>
                       )}
                     </div>
@@ -192,74 +145,14 @@ export default function CrmPipelinePage() {
         )}
       </main>
 
-      {assignOrder && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="assign-title"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
-            <h2 id="assign-title" className="text-base font-semibold">
-              Назначить исполнителя
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground font-mono">{assignOrder.order_number}</p>
-            <p className="mt-2 text-sm text-foreground line-clamp-2">{assignOrder.address}</p>
-
-            {cleaners.length === 0 ? (
-              <p className="mt-4 text-sm text-amber-800">
-                Нет уборщиков с профилем в системе. Создайте пользователя с ролью cleaner и запись в таблице{' '}
-                <code className="rounded bg-muted px-1">cleaners</code>.
-              </p>
-            ) : (
-              <label className="mt-4 block text-sm font-medium">
-                Исполнитель
-                <select
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  value={pickCleanerId}
-                  onChange={(e) => setPickCleanerId(e.target.value)}
-                >
-                  <option value="">— выберите —</option>
-                  {cleaners.map((c) => (
-                    <option key={c.user_id} value={c.user_id}>
-                      {c.first_name ? `${c.first_name} · ` : ''}
-                      {c.phone}
-                      {!c.is_available ? ' (занят)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {assignErr && (
-              <p className="mt-3 text-sm text-red-600" role="alert">
-                {assignErr}
-              </p>
-            )}
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-lg px-3 py-2 text-sm ring-1 ring-border hover:bg-muted"
-                onClick={() => {
-                  setAssignOrder(null)
-                  setAssignErr(null)
-                }}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                disabled={assignMutation.isPending || cleaners.length === 0}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-95 disabled:opacity-50"
-                onClick={submitAssign}
-              >
-                {assignMutation.isPending ? 'Сохранение…' : 'Назначить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AssignCleanerModal
+        order={assignOrder}
+        userId={user?.id}
+        onClose={() => setAssignOrder(null)}
+        onAssigned={() => {
+          refetch()
+        }}
+      />
     </CrmShell>
   )
 }
