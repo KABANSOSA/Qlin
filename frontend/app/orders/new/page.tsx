@@ -24,9 +24,27 @@ const orderSchema = z.object({
   rooms_count: z.number().min(1).max(10),
   bathrooms_count: z.number().min(0).max(5),
   area_sqm: z.union([z.string(), z.number()]).optional().transform((v) => (v === '' || v == null ? undefined : Number(v))),
-  scheduled_at: z.string(),
+  scheduled_at: z.string().min(1, 'Укажите дату и время визита'),
   special_instructions: z.string().optional(),
 })
+
+/** Локальная дата YYYY-MM-DD (для input type="date" и min). */
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Дата+время в локальной зоне браузера → ISO8601 UTC для API (PostgreSQL timestamptz). */
+function localDateTimeToUtcIso(dateStr: string, timeStr: string): string {
+  const t = timeStr.length === 5 ? `${timeStr}:00` : timeStr
+  const ms = new Date(`${dateStr}T${t}`).getTime()
+  if (Number.isNaN(ms)) {
+    throw new Error('invalid_datetime')
+  }
+  return new Date(ms).toISOString()
+}
 
 type OrderForm = z.infer<typeof orderSchema>
 
@@ -37,6 +55,8 @@ function NewOrderPageContent() {
   const [price, setPrice] = useState<number | null>(null)
   const [addressCoordinates, setAddressCoordinates] = useState<{ lat: number; lon: number } | null>(null)
   const [selectedCity, setSelectedCity] = useState<string>('')
+  const [schedDate, setSchedDate] = useState('')
+  const [schedTime, setSchedTime] = useState('10:00')
   const geocodeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isGeocodingRef = useRef(false)
   const {
@@ -79,6 +99,23 @@ function NewOrderPageContent() {
     calculatePrice()
   }, [roomsCount, areaSqmNum])
 
+  // Удобный слот по умолчанию: завтра, 10:00 (локальное время)
+  useEffect(() => {
+    const t = new Date()
+    t.setDate(t.getDate() + 1)
+    t.setHours(10, 0, 0, 0)
+    const d = formatLocalDate(t)
+    setSchedDate(d)
+    setSchedTime('10:00')
+    setValue('scheduled_at', `${d}T10:00`, { shouldValidate: true })
+  }, [setValue])
+
+  useEffect(() => {
+    if (schedDate && schedTime) {
+      setValue('scheduled_at', `${schedDate}T${schedTime}`, { shouldValidate: true })
+    }
+  }, [schedDate, schedTime, setValue])
+
   const onSubmit = async (data: OrderForm) => {
     try {
       setError(null)
@@ -99,9 +136,26 @@ function NewOrderPageContent() {
         return
       }
 
+      let scheduledAtIso: string
+      try {
+        scheduledAtIso = localDateTimeToUtcIso(schedDate, schedTime)
+      } catch {
+        const errorMsg = 'Укажите корректную дату и время'
+        setError(errorMsg)
+        showError(errorMsg, { title: 'Дата и время' })
+        return
+      }
+      if (new Date(scheduledAtIso).getTime() <= Date.now()) {
+        const errorMsg = 'Выберите дату и время визита в будущем'
+        setError(errorMsg)
+        showError(errorMsg, { title: 'Дата и время' })
+        return
+      }
+
       // zone_id-заглушка: бэкенд подставит первую активную зону из БД, пока нет геопривязки
       const orderData = {
         ...data,
+        scheduled_at: scheduledAtIso,
         zone_id: '00000000-0000-0000-0000-000000000000',
         has_pets: false,
         has_balcony: false,
@@ -120,7 +174,12 @@ function NewOrderPageContent() {
       if (typeof raw === 'string') {
         errorMessage = raw
       } else if (Array.isArray(raw)) {
-        errorMessage = raw.map((e: { msg?: string }) => e.msg || JSON.stringify(e)).join('; ')
+        errorMessage = raw
+          .map((e: { loc?: (string | number)[]; msg?: string }) => {
+            const path = Array.isArray(e.loc) ? e.loc.filter((x) => x !== 'body').join(' · ') : ''
+            return path ? `${path}: ${e.msg || 'ошибка'}` : e.msg || JSON.stringify(e)
+          })
+          .join('; ')
       } else if (raw != null && typeof raw === 'object') {
         errorMessage = JSON.stringify(raw)
       } else if (err?.message === 'Network Error') {
@@ -382,27 +441,45 @@ function NewOrderPageContent() {
             <CardDescription className="mt-1 text-base">Слот визита и комментарий для исполнителя</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 p-6 md:p-8">
-              <div>
-                <label htmlFor="scheduled_at" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
                   <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  Дата и время *
+                  Когда приехать *
                 </label>
-                <div className="relative">
-                  <Input
-                    id="scheduled_at"
-                    type="datetime-local"
-                    min={new Date().toISOString().slice(0, 16)}
-                    className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
-                    {...register('scheduled_at')}
-                  />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+                <p className="text-sm text-muted-foreground">
+                  Выберите день и время отдельно — так проще на телефоне, чем один общий календарь.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="sched_date" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Дата
+                    </label>
+                    <Input
+                      id="sched_date"
+                      type="date"
+                      min={formatLocalDate(new Date())}
+                      className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                      value={schedDate}
+                      onChange={(e) => setSchedDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="sched_time" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Время
+                    </label>
+                    <Input
+                      id="sched_time"
+                      type="time"
+                      step={600}
+                      className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                      value={schedTime}
+                      onChange={(e) => setSchedTime(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
+                <input type="hidden" {...register('scheduled_at')} />
               {errors.scheduled_at && (
                 <p className="text-xs text-destructive mt-1.5 flex items-center gap-1.5">
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
