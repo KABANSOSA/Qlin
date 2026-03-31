@@ -20,6 +20,22 @@ class OrderService:
     """Service for order management."""
 
     @staticmethod
+    def _normalize_lat_lon(lat, lon):
+        """Если широта/долгота перепутаны (|lat|>90), меняем местами — иначе overflow numeric(10,8)."""
+        if lat is None or lon is None:
+            return lat, lon
+        try:
+            lt = float(lat)
+            ln = float(lon)
+        except (TypeError, ValueError):
+            return lat, lon
+        if abs(lt) > 90 and abs(ln) <= 90:
+            return ln, lt
+        if abs(ln) > 90 and abs(lt) <= 90:
+            return lt, ln
+        return lt, ln
+
+    @staticmethod
     def generate_order_number(db: Session) -> str:
         """Generate unique order number."""
         while True:
@@ -74,14 +90,19 @@ class OrderService:
             area_sqm=order_data.get("area_sqm"),
         )
 
+        alat, alon = OrderService._normalize_lat_lon(
+            order_data.get("address_lat"),
+            order_data.get("address_lon"),
+        )
+
         # Create order
         order = Order(
             order_number=OrderService.generate_order_number(db),
             customer_id=customer_id,
             zone_id=order_data["zone_id"],
             address=order_data["address"],
-            address_lat=order_data.get("address_lat"),
-            address_lon=order_data.get("address_lon"),
+            address_lat=alat,
+            address_lon=alon,
             apartment=order_data.get("apartment"),
             entrance=order_data.get("entrance"),
             floor=order_data.get("floor"),

@@ -7,6 +7,27 @@ export interface Coordinates {
   lon: number
 }
 
+/**
+ * Разные ответы Яндекса дают пару как [lon, lat] или как [lat, lon].
+ * Широта всегда в [-90, 90]. Если одно значение > 90 по модулю — это долгота (РФ, ДВ).
+ * Если оба в [-90, 90] — считаем порядок GeoJSON/HTTP-геокодера: долгота, широта.
+ */
+export function coordsPairToLatLon(a: number, b: number): Coordinates {
+  const aAbs = Math.abs(a)
+  const bAbs = Math.abs(b)
+  if (aAbs > 90 && bAbs <= 90) {
+    return { lat: b, lon: a }
+  }
+  if (bAbs > 90 && aAbs <= 90) {
+    return { lat: a, lon: b }
+  }
+  // Оба в [-90, 90]: чаще всего GeoJSON [lon, lat]; в РФ широта часто больше долготы по модулю — ловим [lat,lon]
+  if (a > b) {
+    return { lat: a, lon: b }
+  }
+  return { lon: a, lat: b }
+}
+
 export interface AddressSuggestion {
   value: string
   displayName: string
@@ -60,7 +81,7 @@ export const geocodeAddress = async (query: string, limit: number = 5): Promise<
           suggestions.push({
             value: geoObject.getAddressLine(),
             displayName: geoObject.getAddressLine(),
-            coordinates: { lat: coords[1], lon: coords[0] },
+            coordinates: coordsPairToLatLon(coords[0], coords[1]),
           })
         })
         resolve(suggestions)
@@ -99,7 +120,7 @@ export const suggestAddress = async (query: string, limit: number = 5): Promise<
             suggestions.push({
               value: geoObject.metaDataProperty.GeocoderMetaData.text,
               displayName: geoObject.metaDataProperty.GeocoderMetaData.text,
-              coordinates: { lat: coords[1], lon: coords[0] },
+              coordinates: coordsPairToLatLon(coords[0], coords[1]),
             })
           })
         }

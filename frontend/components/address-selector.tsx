@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { MapPin, X, Search, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { loadYandexMaps, geocodeAddress, reverseGeocode, type AddressSuggestion } from '@/lib/yandex-maps'
+import { loadYandexMaps, geocodeAddress, reverseGeocode, coordsPairToLatLon, type AddressSuggestion } from '@/lib/yandex-maps'
 
 interface AddressSelectorProps {
   value: string
@@ -213,7 +213,7 @@ export function AddressSelector({
               // Handle marker drag
               markerRef.current.events.add('dragend', async () => {
                 const newCoords = markerRef.current.geometry.getCoordinates()
-                const coordinates = { lat: newCoords[1], lon: newCoords[0] }
+                const coordinates = coordsPairToLatLon(newCoords[0], newCoords[1])
                 setSelectedCoordinates(coordinates)
                 try {
                   const address = await reverseGeocode(coordinates)
