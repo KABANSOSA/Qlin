@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.db.database import get_db
-from app.core.dependencies import get_current_active_customer, get_current_user
+from app.core.dependencies import (
+    get_current_customer_or_admin,
+    get_current_user,
+)
 from app.models.user import User
 from app.models.order import Order
 from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate
@@ -22,7 +25,7 @@ router = APIRouter(redirect_slashes=False)
 @router.post("/orders/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_order(
     order_data: OrderCreate,
-    current_user: User = Depends(get_current_active_customer),
+    current_user: User = Depends(get_current_customer_or_admin),
     db: Session = Depends(get_db),
 ):
     """Create a new order."""
@@ -95,7 +98,7 @@ async def get_order(
 async def update_order(
     order_id: UUID,
     order_update: OrderUpdate,
-    current_user: User = Depends(get_current_active_customer),
+    current_user: User = Depends(get_current_customer_or_admin),
     db: Session = Depends(get_db),
 ):
     """Update order (only customer can update their own pending orders)."""
