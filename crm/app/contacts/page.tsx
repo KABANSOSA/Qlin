@@ -21,7 +21,7 @@ export default function CrmContactsPage() {
   const { loading, user, error: accessError, retry } = useCrmAccess()
 
   const { data: contacts, refetch, isFetching, isLoading, error } = useQuery({
-    queryKey: ['admin-users-customers'],
+    queryKey: ['admin-users-customers', user?.id],
     queryFn: async () => {
       const { data } = await api.get<ContactRow[]>('/admin/users', { params: { role: 'customer', limit: 200 } })
       return data
@@ -41,8 +41,15 @@ export default function CrmContactsPage() {
         <p className="mt-1 text-sm text-muted-foreground">Клиенты, зарегистрированные на сайте.</p>
 
         {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            Не удалось загрузить контакты.
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Не удалось загрузить контакты.</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-900 ring-1 ring-red-200 hover:bg-red-100"
+            >
+              Повторить
+            </button>
           </div>
         )}
 

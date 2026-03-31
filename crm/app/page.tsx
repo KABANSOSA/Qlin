@@ -18,8 +18,14 @@ interface Stats {
 export default function CrmDashboardPage() {
   const { loading, user, error, retry } = useCrmAccess()
 
-  const { data: stats, refetch, isFetching } = useQuery({
-    queryKey: ['admin-stats'],
+  const {
+    data: stats,
+    refetch,
+    isFetching,
+    isLoading: statsLoading,
+    isError: statsError,
+  } = useQuery({
+    queryKey: ['admin-stats', user?.id],
     queryFn: async () => {
       const { data } = await api.get<Stats>('/admin/stats')
       return data
@@ -42,20 +48,37 @@ export default function CrmDashboardPage() {
           Лиды и сделки = заявки на уборку. Контакты = клиенты с сайта.
         </p>
 
+        {statsError && (
+          <div className="mt-6 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Не удалось загрузить статистику.</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-900 ring-1 ring-red-200 hover:bg-red-100"
+            >
+              Повторить
+            </button>
+          </div>
+        )}
+
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <Users className="h-4 w-4" />
               Клиенты
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums">{stats?.customers ?? '—'}</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums">
+              {statsLoading ? '…' : stats?.customers ?? '—'}
+            </p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <ClipboardList className="h-4 w-4" />
               Всего заявок
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums">{stats?.orders_total ?? '—'}</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums">
+              {statsLoading ? '…' : stats?.orders_total ?? '—'}
+            </p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -63,9 +86,11 @@ export default function CrmDashboardPage() {
               Выручка (оплачено)
             </div>
             <p className="mt-2 text-2xl font-bold tabular-nums">
-              {stats != null
-                ? `${Math.round(stats.revenue_paid_rub).toLocaleString('ru-RU')} ₽`
-                : '—'}
+              {statsLoading
+                ? '…'
+                : stats != null
+                  ? `${Math.round(stats.revenue_paid_rub).toLocaleString('ru-RU')} ₽`
+                  : '—'}
             </p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -73,7 +98,7 @@ export default function CrmDashboardPage() {
               <Kanban className="h-4 w-4" />
               Новых (ожидают)
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums">{pending}</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums">{statsLoading ? '…' : pending}</p>
           </div>
         </div>
 

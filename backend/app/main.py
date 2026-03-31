@@ -20,6 +20,8 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    # Без этого Starlette даёт 307 на .../orders/ с Location: http://... за nginx → mixed content в браузере
+    redirect_slashes=False,
 )
 
 # CORS middleware

@@ -31,8 +31,14 @@ const COLUMNS: { key: string; label: string }[] = [
 export default function CrmPipelinePage() {
   const { loading, user, error, retry } = useCrmAccess()
 
-  const { data: orders, refetch, isFetching, isLoading } = useQuery({
-    queryKey: ['admin-orders-pipeline'],
+  const {
+    data: orders,
+    refetch,
+    isFetching,
+    isLoading,
+    isError: ordersError,
+  } = useQuery({
+    queryKey: ['admin-orders-pipeline', user?.id],
     queryFn: async () => {
       const { data } = await api.get<CrmOrder[]>('/admin/orders', { params: { limit: 100 } })
       return data
@@ -63,6 +69,19 @@ export default function CrmPipelinePage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Сделки = заявки на уборку. Перетаскивание между колонками позже можно добавить через смену статуса в API.
         </p>
+
+        {ordersError && (
+          <div className="mt-6 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Не удалось загрузить воронку.</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-900 ring-1 ring-red-200 hover:bg-red-100"
+            >
+              Повторить
+            </button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="mt-8 h-64 animate-pulse rounded-2xl bg-muted" />

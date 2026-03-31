@@ -26,10 +26,16 @@ export function CrmShell({
 }) {
   const pathname = usePathname()
 
+  const navActive = (href: string) => {
+    if (href === '/') return pathname === '/'
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
+
   const logout = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
-    window.location.href = '/login'
+    const back = `${pathname}${typeof window !== 'undefined' ? window.location.search : ''}`
+    window.location.href = `/login?returnUrl=${encodeURIComponent(back === '/login' ? '/' : back)}`
   }
 
   return (
@@ -50,10 +56,11 @@ export function CrmShell({
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={navActive(item.href) ? 'page' : undefined}
                 className={cn(
                   'rounded-lg px-2.5 py-1.5 font-medium transition-colors sm:px-3',
-                  pathname === item.href
-                    ? 'bg-primary text-white'
+                  navActive(item.href)
+                    ? 'bg-primary text-white shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >

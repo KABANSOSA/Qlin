@@ -1,11 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import axios from 'axios'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { getPublicSiteUrl } from '@/lib/public-site'
+
+function safeReturnPath(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/'
+  if (raw.includes('..')) return '/'
+  return raw
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,6 +20,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [afterLogin, setAfterLogin] = useState('/')
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    setAfterLogin(safeReturnPath(p.get('returnUrl')))
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,22 +42,18 @@ export default function LoginPage() {
         setError('Доступ только для администратора (роль admin).')
         return
       }
-      router.push('/')
+      router.push(afterLogin)
       router.refresh()
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && !err.response) {
         setError(
-          'Нет ответа от API (часто CORS: добавьте в CORS_ORIGINS бэкенда origin этой страницы, например http://89.23.97.28:3002, или откройте CRM по домену crm.qlin.pro).'
+          'Нет ответа от API. Проверьте CORS на бэкенде (origin этой страницы в CORS_ORIGINS) или откройте CRM по домену (например crm.qlin.pro).'
         )
         return
       }
       const ax = err as { response?: { data?: { detail?: string | unknown } } }
       const d = ax.response?.data?.detail
-      setError(
-        typeof d === 'string'
-          ? d
-          : 'Неверный телефон или пароль'
-      )
+      setError(typeof d === 'string' ? d : 'Неверный телефон или пароль')
     } finally {
       setLoading(false)
     }
@@ -55,7 +64,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md rounded-2xl border border-border bg-white p-8 shadow-xl">
         <div className="mb-8 text-center">
           <div className="text-2xl font-bold tracking-tight text-primary">QLIN</div>
-          <p className="mt-1 text-sm text-muted-foreground">CRM — вход для менеджеров</p>
+          <p className="mt-1 text-sm text-muted-foreground">CRM — вход для администраторов</p>
         </div>
         <form onSubmit={submit} className="space-y-4">
           <div>
@@ -100,7 +109,7 @@ export default function LoginPage() {
         </form>
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Отдельное приложение от публичного сайта.{' '}
-          <Link href={process.env.NEXT_PUBLIC_PUBLIC_SITE_URL || 'https://qlin.pro'} className="text-primary underline">
+          <Link href={getPublicSiteUrl()} className="text-primary underline">
             qlin.pro
           </Link>
         </p>

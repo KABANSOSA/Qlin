@@ -35,8 +35,14 @@ interface PaymentRow {
 export default function CrmPaymentsPage() {
   const { loading, user, error, retry } = useCrmAccess()
 
-  const { data: orders, refetch: refetchOrders, isFetching: f1, isLoading: l1 } = useQuery({
-    queryKey: ['admin-orders-pay'],
+  const {
+    data: orders,
+    refetch: refetchOrders,
+    isFetching: f1,
+    isLoading: l1,
+    isError: errOrders,
+  } = useQuery({
+    queryKey: ['admin-orders-pay', user?.id],
     queryFn: async () => {
       const { data } = await api.get<OrderRow[]>('/admin/orders', { params: { limit: 100 } })
       return data
@@ -45,8 +51,14 @@ export default function CrmPaymentsPage() {
     staleTime: 20_000,
   })
 
-  const { data: payments, refetch: refetchPay, isFetching: f2, isLoading: l2 } = useQuery({
-    queryKey: ['admin-payments'],
+  const {
+    data: payments,
+    refetch: refetchPay,
+    isFetching: f2,
+    isLoading: l2,
+    isError: errPayments,
+  } = useQuery({
+    queryKey: ['admin-payments', user?.id],
     queryFn: async () => {
       const { data } = await api.get<PaymentRow[]>('/admin/payments', { params: { limit: 100 } })
       return data
@@ -78,6 +90,19 @@ export default function CrmPaymentsPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Суммы по заказам (поле оплаты в заказе) и записи из платёжной таблицы, если они есть.
         </p>
+
+        {(errOrders || errPayments) && (
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Часть данных не загрузилась.</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-900 ring-1 ring-red-200 hover:bg-red-100"
+            >
+              Обновить всё
+            </button>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-border bg-card p-5">

@@ -12,6 +12,11 @@ export interface CrmUser {
   role: string
 }
 
+function loginPathWithReturn(pathname: string | null): string {
+  const p = pathname && pathname !== '/login' ? pathname : '/'
+  return `/login?returnUrl=${encodeURIComponent(p)}`
+}
+
 export function useCrmAccess() {
   const router = useRouter()
   const [state, setState] = useState<{
@@ -25,7 +30,8 @@ export function useCrmAccess() {
     const token = localStorage.getItem('access_token')
     if (!token) {
       setState({ loading: false, user: null, error: null })
-      router.replace('/login')
+      const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+      router.replace(loginPathWithReturn(path))
       return
     }
     setState((s) => ({ ...s, loading: true, error: null }))
@@ -36,7 +42,8 @@ export function useCrmAccess() {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
           setState({ loading: false, user: null, error: null })
-          router.replace('/login')
+          const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+          router.replace(loginPathWithReturn(path))
           return
         }
         setState({ loading: false, user: r.data, error: null })
@@ -49,7 +56,8 @@ export function useCrmAccess() {
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
         setState({ loading: false, user: null, error: null })
-        router.replace('/login')
+        const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+        router.replace(loginPathWithReturn(path))
       })
   }, [router])
 

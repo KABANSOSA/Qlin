@@ -6,9 +6,11 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ExternalLink } from 'lucide-react'
 import { CrmShell } from '@/components/crm-shell'
 import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
+import { getPublicOrderUrl } from '@/lib/public-site'
 
 interface CrmOrder {
   id: string
@@ -68,7 +70,7 @@ export default function CrmOrdersPage() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ['admin-orders', status],
+    queryKey: ['admin-orders', user?.id, status],
     queryFn: async () => {
       const params: Record<string, string> = { limit: '100' }
       if (status) params.status = status
@@ -105,8 +107,15 @@ export default function CrmOrdersPage() {
         </div>
 
         {ordersError && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            Не удалось загрузить заявки.
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Не удалось загрузить заявки.</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-900 ring-1 ring-red-200 hover:bg-red-100"
+            >
+              Повторить
+            </button>
           </div>
         )}
 
@@ -147,6 +156,17 @@ export default function CrmOrdersPage() {
                       {Number(o.total_price).toLocaleString('ru-RU')} ₽
                     </span>
                   </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <a
+                    href={getPublicOrderUrl(o.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    Открыть на сайте
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
                 </div>
                 <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
                   <div>
