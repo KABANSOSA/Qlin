@@ -1,7 +1,8 @@
 FROM node:18-alpine
 
-# Для стабильной работы Node на Alpine + актуальные CA (HTTPS к registry.npmjs.org)
-RUN apk add --no-cache libc6-compat ca-certificates && update-ca-certificates
+# libc6-compat — совместимость Node на Alpine; ca-certificates подтягивает корни при установке
+# (отдельный update-ca-certificates в Docker часто даёт exit code 2 без пользы)
+RUN apk add --no-cache libc6-compat ca-certificates
 
 WORKDIR /app
 

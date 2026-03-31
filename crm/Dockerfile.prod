@@ -1,7 +1,7 @@
 # Node 20+ — требование eslint/зависимостей (EBADENGINE на 18.x)
 FROM node:20-alpine
 
-RUN apk add --no-cache libc6-compat ca-certificates && update-ca-certificates
+RUN apk add --no-cache libc6-compat ca-certificates
 
 WORKDIR /app
 
