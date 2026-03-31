@@ -169,7 +169,9 @@ function NewOrderPageContent() {
         router.push(`/orders/${response.data.id}`)
       }, 1000)
     } catch (err: any) {
-      const raw = err.response?.data?.detail
+      const status = err.response?.status as number | undefined
+      const payload = err.response?.data
+      const raw = payload?.detail
       let errorMessage = 'Ошибка создания заказа'
       if (typeof raw === 'string') {
         errorMessage = raw
@@ -182,8 +184,20 @@ function NewOrderPageContent() {
           .join('; ')
       } else if (raw != null && typeof raw === 'object') {
         errorMessage = JSON.stringify(raw)
-      } else if (err?.message === 'Network Error') {
+      } else if (payload && typeof payload === 'object' && typeof (payload as { message?: string }).message === 'string') {
+        errorMessage = (payload as { message: string }).message
+      } else if (typeof payload === 'string' && payload.length > 0 && payload.length < 400) {
+        errorMessage = payload
+      } else if (err?.message === 'Network Error' || !err.response) {
         errorMessage = 'Нет связи с сервером. Проверьте сеть и что API запущен.'
+      } else if (status === 401) {
+        errorMessage = 'Сессия истекла. Войдите снова и повторите заказ.'
+      } else if (status === 502 || status === 504) {
+        errorMessage = 'Сервер временно не отвечает (прокси/бэкенд). Попробуйте через минуту.'
+      } else if (status != null && status >= 500) {
+        errorMessage = `Ошибка сервера (${status}). Если повторится — напишите в поддержку.`
+      } else if (status != null && status !== 200) {
+        errorMessage = `Запрос отклонён (${status}).`
       }
       setError(errorMessage)
       showError(errorMessage, { title: 'Ошибка' })

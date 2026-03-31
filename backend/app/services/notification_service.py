@@ -1,7 +1,7 @@
 """
 Notification service for sending notifications.
 """
-from typing import List
+import logging
 from sqlalchemy.orm import Session
 import httpx
 
@@ -18,42 +18,36 @@ class NotificationService:
     @staticmethod
     def notify_cleaners_new_order(db: Session, order: Order):
         """Notify all available cleaners about new order via Telegram bot."""
-        # Get all available cleaners
-        cleaners = (
-            db.query(User)
-            .join(Cleaner)
-            .filter(
-                User.role == "cleaner",
-                User.is_active == True,
-                Cleaner.is_available == True,
-                User.telegram_id.isnot(None),
-            )
-            .all()
-        )
-
-        # Send notification to bot (bot will handle Telegram notifications)
-        # This is a webhook call to bot's notification endpoint
         try:
-            with httpx.Client() as client:
-                for cleaner in cleaners:
-                    # Create notification record
-                    notification = Notification(
-                        user_id=cleaner.id,
-                        type="order_available",
-                        title="Новый заказ",
-                        message=f"Доступен новый заказ #{order.order_number}",
-                        related_order_id=order.id,
-                    )
-                    db.add(notification)
+            # Get all available cleaners
+            cleaners = (
+                db.query(User)
+                .join(Cleaner)
+                .filter(
+                    User.role == "cleaner",
+                    User.is_active == True,
+                    Cleaner.is_available == True,
+                    User.telegram_id.isnot(None),
+                )
+                .all()
+            )
 
-                    # Call bot's notification API (if bot exposes such endpoint)
-                    # For now, we'll rely on bot polling or webhook from bot side
-                    pass
+            for cleaner in cleaners:
+                notification = Notification(
+                    user_id=cleaner.id,
+                    type="order_available",
+                    title="Новый заказ",
+                    message=f"Доступен новый заказ #{order.order_number}",
+                    related_order_id=order.id,
+                )
+                db.add(notification)
 
-            db.commit()
+            if cleaners:
+                db.commit()
         except Exception as e:
-            # Log error but don't fail order creation
-            print(f"Error notifying cleaners: {e}")
+            # Заказ уже создан — не прерываем ответ API из-за уведомлений
+            db.rollback()
+            logging.exception("notify_cleaners_new_order failed: %s", e)
 
     @staticmethod
     def notify_order_assigned(db: Session, order: Order):

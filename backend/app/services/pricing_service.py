@@ -4,7 +4,7 @@ Pricing service for calculating order prices.
 from typing import Dict, Optional
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.pricing_rule import PricingRule
 from app.models.zone import Zone
@@ -33,6 +33,7 @@ class PricingService:
         if not zone:
             raise ValueError("Zone not found")
 
+        now = datetime.now(timezone.utc)
         # Get pricing rule
         rule = (
             db.query(PricingRule)
@@ -40,8 +41,8 @@ class PricingService:
                 PricingRule.zone_id == zone_id,
                 PricingRule.cleaning_type == cleaning_type,
                 PricingRule.is_active == True,
-                PricingRule.valid_from <= datetime.utcnow(),
-                (PricingRule.valid_until.is_(None) | (PricingRule.valid_until >= datetime.utcnow())),
+                PricingRule.valid_from <= now,
+                (PricingRule.valid_until.is_(None) | (PricingRule.valid_until >= now)),
             )
             .first()
         )
