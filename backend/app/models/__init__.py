@@ -11,6 +11,7 @@ from app.models.pricing_rule import PricingRule
 from app.models.payment import Payment
 from app.models.rating import Rating
 from app.models.notification import Notification
+from app.models.push_device import PushDevice
 
 __all__ = [
     "Base",
@@ -23,4 +24,5 @@ __all__ = [
     "Payment",
     "Rating",
     "Notification",
+    "PushDevice",
 ]
