@@ -2,19 +2,30 @@
 Authentication endpoints.
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from jose import jwt as jose_jwt
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.config import settings
+from app.core.oauth_helpers import phone_from_oauth_sub
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse
-from app.schemas.auth import Token, ForgotPasswordRequest, ResetPasswordRequest
+from app.schemas.auth import (
+    Token,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    OtpRequest,
+    OtpVerify,
+    AppleIdentityBody,
+)
 from app.services.password_reset_service import request_password_reset, reset_password_with_token
+from app.services.otp_service import normalize_phone, request_otp, verify_otp
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -201,3 +212,90 @@ async def refresh_token_endpoint(request: Request, db: Session = Depends(get_db)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     return current_user
+
+
+def _allocate_unique_oauth_phone(db: Session, provider: str, sub: str) -> str:
+    for i in range(30):
+        suffix = sub + (str(i) if i else "")
+        p = phone_from_oauth_sub(provider, suffix)
+        if not db.query(User).filter(User.phone == p).first():
+            return p
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Не удалось создать профиль")
+
+
+@router.post("/otp/request")
+async def auth_otp_request(body: OtpRequest):
+    """Запрос SMS-кода для входа (роль customer при первом входе)."""
+    try:
+        code, sms_sent = request_otp(body.phone)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)) from e
+    out: dict = {"message": "Если номер верный, код отправлен по SMS", "sms_sent": sms_sent}
+    if settings.DEBUG:
+        out["dev_code"] = code
+    return out
+
+
+@router.post("/otp/verify", response_model=Token)
+async def auth_otp_verify(body: OtpVerify, db: Session = Depends(get_db)):
+    """Подтверждение кода → JWT."""
+    if not verify_otp(body.phone, body.code):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный или просроченный код")
+    try:
+        phone = normalize_phone(body.phone)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+    user = db.query(User).filter(User.phone == phone).first()
+    if not user:
+        user = User(phone=phone, role="customer", is_active=True)
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            user = db.query(User).filter(User.phone == phone).first()
+            if not user:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Не удалось создать пользователя")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "role": user.role})
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+
+@router.post("/oauth/apple", response_model=Token)
+async def auth_oauth_apple(body: AppleIdentityBody, db: Session = Depends(get_db)):
+    """Вход через Apple (identity_token). Проверка aud при заданном APPLE_CLIENT_ID."""
+    try:
+        claims = jose_jwt.get_unverified_claims(body.identity_token)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный JWT Apple")
+    aud = claims.get("aud")
+    if settings.APPLE_CLIENT_ID and aud != settings.APPLE_CLIENT_ID:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный audience Apple")
+    sub = claims.get("sub")
+    if not sub:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет sub в токене Apple")
+    email = claims.get("email")
+    user = None
+    if email:
+        user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
+    if not user:
+        user = db.query(User).filter(User.phone == phone_from_oauth_sub("apple", sub)).first()
+    if not user:
+        phone = _allocate_unique_oauth_phone(db, "apple", sub)
+        user = User(
+            phone=phone,
+            email=email,
+            role="customer",
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "role": user.role})
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}

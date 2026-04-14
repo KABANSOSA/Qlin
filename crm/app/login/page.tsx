@@ -65,6 +65,11 @@ export default function LoginPage() {
         <div className="mb-8 text-center">
           <div className="text-2xl font-bold tracking-tight text-primary">QLIN</div>
           <p className="mt-1 text-sm text-muted-foreground">CRM — вход для администраторов</p>
+          <p className="mt-3 text-left text-xs leading-relaxed text-muted-foreground">
+            Нужна учётная запись с ролью <strong className="text-foreground">admin</strong> в базе (аккаунт
+            клиента с сайта сюда не пускается). Телефон вводите как в базе, чаще с{' '}
+            <strong className="text-foreground">+7</strong>.
+          </p>
         </div>
         <form onSubmit={submit} className="space-y-4">
           <div>

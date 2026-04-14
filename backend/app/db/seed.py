@@ -26,8 +26,18 @@ def seed_database():
             db.add(admin)
             db.commit()
 
-        # Create zones
+        # Create zones (приоритет для приложения — Хабаровск и Южно-Сахалинск)
         zones_data = [
+            {
+                "name": "Хабаровск — сервис",
+                "city": "Хабаровск",
+                "base_price": 2500,
+            },
+            {
+                "name": "Южно-Сахалинск — сервис",
+                "city": "Южно-Сахалинск",
+                "base_price": 2800,
+            },
             {
                 "name": "Центральный округ",
                 "city": "Москва",
@@ -64,6 +74,17 @@ def seed_database():
                     db.add(rule)
 
         db.commit()
+
+        from app.core.config import settings
+        from app.core.security import get_password_hash
+
+        if settings.SEED_ADMIN_PASSWORD and settings.SEED_ADMIN_PASSWORD.strip():
+            admin_user = db.query(User).filter(User.phone == "+79999999999").first()
+            if admin_user:
+                admin_user.password_hash = get_password_hash(settings.SEED_ADMIN_PASSWORD.strip())
+                db.add(admin_user)
+                db.commit()
+
         print("Database seeded successfully!")
 
     except Exception as e:

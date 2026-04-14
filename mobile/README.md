@@ -6,7 +6,7 @@
 
 - Node 20+
 - [Expo CLI](https://docs.expo.dev/get-started/installation/) / `npx expo`
-- Для нативных модулей (Yandex MapKit, пуши в production, Google/Apple Sign-In) — **development build** ([EAS Build](https://docs.expo.dev/build/introduction/)), не только Expo Go.
+- Для нативных модулей (Yandex MapKit, пуши в production, Apple Sign-In на iOS) — **development build** ([EAS Build](https://docs.expo.dev/build/introduction/)), не только Expo Go.
 
 ## Быстрый старт
 
@@ -35,7 +35,7 @@ mobile/
 │   ├── _layout.tsx         # QueryClient, Auth, PushGate
 │   ├── index.tsx           # редирект по role
 │   ├── login.tsx
-│   ├── map-preview.tsx     # заглушка до подключения MapKit
+│   ├── map-preview.tsx     # открытие адреса в Яндекс.Картах в браузере
 │   ├── customer/           # экраны клиента
 │   └── cleaner/            # экраны клинера
 ├── src/
@@ -70,25 +70,39 @@ mobile/
 
 **Expo Go** с кастомным нативным MapKit обычно **не** подходит — используйте **development build**.
 
-## Сборка в сторы
+## Сборка в сторы (EAS)
 
 ```bash
 npm install -g eas-cli
+cd mobile
 eas login
-eas build --platform ios
-eas build --platform android
+eas init
 ```
+
+В `app.json` после `eas init` появится `extra.eas.projectId` — нужен для **пушей** и стабильных билдов.
+
+Продакшен:
+
+```bash
+npm run build:android
+npm run build:ios
+```
+
+Публикация: `npm run submit:android` / `npm run submit:ios` (нужны аккаунты Google Play / App Store Connect).
 
 Профили в `eas.json`: `development`, `preview`, `production`.
 
-## Авторизация (дорожная карта)
+## Чеклист до релиза
 
-| Сейчас | Дальше на бэкенде |
-|--------|-------------------|
-| Вход по телефону + паролю (`POST /auth/login`) | `POST /auth/otp/request`, `POST /auth/otp/verify` |
-| — | `POST /auth/oauth/google`, `POST /auth/oauth/apple` с проверкой id_token на сервере |
+1. **`.env`**: `EXPO_PUBLIC_API_URL=https://qlin.pro/api/v1` (или ваш API).
+2. **Apple Sign-In** (iOS): настраивается в Apple Developer; при необходимости `APPLE_CLIENT_ID` на бэкенде.
+3. **`eas build`** — не только Expo Go; для пушей и Apple Sign-In — **production/preview** build.
+4. В **Google Play / App Store** указать bundle id / package: `pro.qlin.mobile` (как в `app.json`), иконки и политика конфиденциальности.
+5. Опционально: нативная **Яндекс.Карта** — отдельный пакет и prebuild (см. раздел «Yandex MapKit»).
 
-В приложении появятся кнопки «СМС», «Google», «Apple» и вызов этих эндпоинтов; текущий экран `login.tsx` можно расширять без смены навигации.
+## Авторизация
+
+Реализованы: пароль, SMS OTP, Apple (iOS). Эндпоинты: `/auth/login`, `/auth/otp/*`, `/auth/oauth/apple`.
 
 ## Связанные API
 

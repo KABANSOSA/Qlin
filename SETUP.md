@@ -1,191 +1,131 @@
-# Инструкция по установке и запуску
+# QLINPRO — настройка с нуля
 
-## Предварительные требования
+## Что установить на компьютер
 
-- Docker & Docker Compose
-- Git
+1. **Git** (если клонируете репозиторий)
+2. **Docker Desktop** (Windows/macOS) или Docker + Docker Compose на Linux
+3. **Node.js 20+** (для фронта и мобильного приложения без Docker)
+4. **npm** (идёт с Node)
 
-## Быстрый старт
+---
 
-### 1. Клонирование и настройка
+## 1. Получить код
 
-```bash
-# Клонировать репозиторий (если есть)
-git clone <repository-url>
-cd QLINPRO
+Откройте папку проекта, например:
 
-# Скопировать файл с переменными окружения
-cp .env.example .env
+`C:\Users\<ваш_пользователь>\OneDrive\Рабочий стол\QLINPRO`
 
-# Отредактировать .env файл
-# Обязательно установите:
-# - SECRET_KEY (сгенерируйте случайную строку)
-# - TELEGRAM_BOT_TOKEN (токен вашего бота)
-# - TELEGRAM_WEBHOOK_SECRET (секрет для webhook)
+Или клонируйте репозиторий и перейдите в каталог.
+
+---
+
+## 2. Файл `.env` в корне проекта (для Docker)
+
+Бэкенд требует **обязательные** переменные. Создайте файл **`.env`** в **корне** `QLINPRO` (рядом с `docker-compose.yml`).
+
+**Минимум для локальной разработки** (можно скопировать и подправить):
+
+```env
+SECRET_KEY=локальная-случайная-строка-минимум-32-символа
+TELEGRAM_BOT_TOKEN=000000:placeholder
+TELEGRAM_WEBHOOK_SECRET=local-dev-secret
 ```
 
-### 2. Запуск сервисов
+Полный список полей см. в **`.env.example`** (прод и дополнительные сервисы).
 
-```bash
-# Запустить все сервисы
-docker-compose up -d
+---
 
-# Проверить статус
-docker-compose ps
+## 3. Запуск бэкенда и БД (Docker)
+
+В **cmd** или **PowerShell** из корня `QLINPRO`:
+
+```bat
+cd /d "C:\Users\бадан\OneDrive\Рабочий стол\QLINPRO"
+docker compose up -d postgres redis backend
 ```
 
-### 3. Инициализация базы данных
+Дождитесь готовности контейнеров. Затем миграции:
 
-```bash
-# Применить миграции
-docker-compose exec backend alembic upgrade head
-
-# Загрузить начальные данные (зоны, админ пользователь)
-docker-compose exec backend python -m app.db.seed
+```bat
+docker compose exec backend alembic upgrade head
 ```
 
-### 4. Проверка работы
+Проверка: в браузере откройте **http://localhost:8000/docs** — Swagger API.
 
-- Backend API: http://localhost:8000
-- API документация: http://localhost:8000/docs
-- Frontend: http://localhost:3000
+Если порт 8000 занят — измените проброс в `docker-compose.yml` или остановите другой сервис.
 
-## Разработка
+---
 
-### Backend (локально)
+## 4. Запуск сайта (frontend) локально
 
-```bash
-cd backend
+В отдельном терминале:
 
-# Создать виртуальное окружение
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate  # Windows
-
-# Установить зависимости
-pip install -r requirements.txt
-
-# Настроить переменные окружения в .env
-
-# Запустить сервер
-uvicorn app.main:app --reload
-```
-
-### Frontend (локально)
-
-```bash
-cd frontend
-
-# Установить зависимости
+```bat
+cd /d "C:\Users\бадан\OneDrive\Рабочий стол\QLINPRO\frontend"
 npm install
-
-# Запустить dev сервер
 npm run dev
 ```
 
-## Интеграция с Telegram ботом
+Обычно сайт: **http://localhost:3000** (см. вывод в консоли).
 
-### 1. Настройка Webhook в боте
+Переменные окружения фронта при необходимости — в `frontend` по документации проекта.
 
-Бот должен отправлять события в backend через endpoint:
-```
-POST http://your-backend-url/api/v1/webhooks/telegram
-```
+---
 
-См. подробности в [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md)
+## 5. Мобильное приложение (Expo)
 
-### 2. Тестирование интеграции
-
-1. Создайте заказ через веб-интерфейс
-2. Проверьте, что заказ появился в БД
-3. Убедитесь, что бот получил уведомление (через polling или webhook)
-4. Примите заказ через бота
-5. Проверьте, что статус обновился в веб-интерфейсе
-
-## Структура проекта
-
-```
-QLINPRO/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/            # API endpoints
-│   │   ├── core/           # Config, security
-│   │   ├── models/         # Database models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   └── db/             # Database setup
-│   ├── alembic/            # Migrations
-│   └── requirements.txt
-├── frontend/               # Next.js frontend
-│   ├── app/               # App Router pages
-│   ├── components/        # React components
-│   └── lib/               # Utilities
-├── docker-compose.yml
-├── .env.example
-└── README.md
+```bat
+cd /d "C:\Users\бадан\OneDrive\Рабочий стол\QLINPRO\mobile"
+copy .env.example .env
+notepad .env
 ```
 
-## Переменные окружения
+В `.env` укажите API:
 
-См. `.env.example` для полного списка переменных.
+| Сценарий | Значение `EXPO_PUBLIC_API_URL` |
+|----------|-------------------------------|
+| Эмулятор Android на этом ПК | `http://10.0.2.2:8000/api/v1` |
+| Телефон в той же Wi‑Fi сети | `http://<IP_вашего_ПК>:8000/api/v1` (узнайте `ipconfig`) |
+| Боевой сервер | `https://qlin.pro/api/v1` |
 
-**Обязательные:**
-- `SECRET_KEY` - секретный ключ для JWT
-- `TELEGRAM_BOT_TOKEN` - токен Telegram бота
-- `TELEGRAM_WEBHOOK_SECRET` - секрет для webhook
+Дальше:
 
-**База данных:**
-- `DATABASE_URL` - URL подключения к PostgreSQL
-- `REDIS_URL` - URL подключения к Redis
-
-## Troubleshooting
-
-### Проблемы с подключением к БД
-
-```bash
-# Проверить статус PostgreSQL
-docker-compose ps postgres
-
-# Просмотреть логи
-docker-compose logs postgres
-
-# Пересоздать БД
-docker-compose down -v
-docker-compose up -d postgres
+```bat
+npm install
+npx expo start
 ```
 
-### Проблемы с миграциями
+Откройте в **Expo Go** по QR или нажмите `a` / `i` для эмулятора.
 
-```bash
-# Просмотреть текущую версию
-docker-compose exec backend alembic current
+---
 
-# Откатить последнюю миграцию
-docker-compose exec backend alembic downgrade -1
+## 6. Частые проблемы
 
-# Применить все миграции
-docker-compose exec backend alembic upgrade head
+| Симптом | Что проверить |
+|--------|----------------|
+| Backend не стартует | Есть ли `.env` в корне с `SECRET_KEY`, `TELEGRAM_*` |
+| Docker не запускается | Запущен ли Docker Desktop |
+| Приложение не видит API | Один Wi‑Fi с ПК, фаервол Windows, верный `EXPO_PUBLIC_API_URL` |
+| `npm install` ошибки в mobile | `npm install --legacy-peer-deps` |
+
+---
+
+## 7. Продакшен (сервер)
+
+См. **`RELEASE.md`** и **`scripts/deploy-prod.cmd`** / **`scripts/deploy-prod.sh`**.
+
+---
+
+## 8. Полезные команды
+
+Остановить контейнеры:
+
+```bat
+docker compose down
 ```
 
-### Проблемы с frontend
+Логи бэкенда:
 
-```bash
-# Очистить кеш Next.js
-cd frontend
-rm -rf .next
-npm run dev
+```bat
+docker compose logs -f backend
 ```
-
-## Production Deployment
-
-1. Настройте production переменные окружения
-2. Используйте HTTPS для всех сервисов
-3. Настройте правильные CORS origins
-4. Используйте сильные секреты
-5. Настройте мониторинг и логирование
-6. Настройте резервное копирование БД
-
-## Поддержка
-
-Для вопросов и проблем создайте issue в репозитории.

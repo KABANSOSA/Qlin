@@ -8,9 +8,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        border: 'hsl(214 32% 91%)',
-        background: 'hsl(210 40% 98%)',
+        border: 'hsl(220 13% 91%)',
+        background: 'hsl(220 14% 97%)',
         foreground: 'hsl(222 47% 11%)',
+        /** акцент как в референсе CRM (красный) */
+        brand: {
+          DEFAULT: '#E31E24',
+          hover: '#c41a1f',
+          muted: '#fce8e9',
+        },
         primary: {
           DEFAULT: 'hsl(221 83% 53%)',
           foreground: 'hsl(210 40% 98%)',

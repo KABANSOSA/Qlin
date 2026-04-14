@@ -9,7 +9,9 @@ from app.models.order import Order
 from app.models.user import User
 from app.models.cleaner import Cleaner
 from app.models.notification import Notification
+from app.models.push_device import PushDevice
 from app.core.config import settings
+from app.services.expo_push_service import push_to_user_ids
 
 
 class NotificationService:
@@ -44,6 +46,26 @@ class NotificationService:
 
             if cleaners:
                 db.commit()
+
+            # Push в приложение (Expo) всем клинерам с зарегистрированным токеном
+            try:
+                cleaner_ids_push = (
+                    db.query(User.id)
+                    .join(PushDevice, PushDevice.user_id == User.id)
+                    .filter(User.role == "cleaner", User.is_active.is_(True))
+                    .distinct()
+                    .all()
+                )
+                if cleaner_ids_push:
+                    push_to_user_ids(
+                        db,
+                        [r[0] for r in cleaner_ids_push],
+                        "Новый заказ",
+                        f"Доступен заказ #{order.order_number}",
+                        {"type": "new_order", "order_id": str(order.id)},
+                    )
+            except Exception as e:
+                logging.exception("notify_cleaners_new_order push failed: %s", e)
         except Exception as e:
             # Заказ уже создан — не прерываем ответ API из-за уведомлений
             db.rollback()
@@ -70,6 +92,45 @@ class NotificationService:
                 chat_id=customer.telegram_id,
                 text=f"✅ Заказ #{order.order_number} назначен уборщику",
             )
+
+        try:
+            push_to_user_ids(
+                db,
+                [order.customer_id],
+                "Заказ назначен",
+                f"Заказ #{order.order_number} назначен уборщику",
+                {"type": "order_assigned", "order_id": str(order.id)},
+            )
+        except Exception as e:
+            logging.exception("notify_order_assigned push failed: %s", e)
+
+    @staticmethod
+    def notify_customer_order_in_progress(db: Session, order: Order):
+        """Клиенту: уборка началась."""
+        try:
+            push_to_user_ids(
+                db,
+                [order.customer_id],
+                "Уборка началась",
+                f"Заказ #{order.order_number} в работе",
+                {"type": "in_progress", "order_id": str(order.id)},
+            )
+        except Exception as e:
+            logging.exception("notify_customer_order_in_progress push failed: %s", e)
+
+    @staticmethod
+    def notify_customer_order_completed(db: Session, order: Order):
+        """Клиенту: уборка завершена."""
+        try:
+            push_to_user_ids(
+                db,
+                [order.customer_id],
+                "Уборка завершена",
+                f"Заказ #{order.order_number} выполнен. Можно оплатить.",
+                {"type": "completed", "order_id": str(order.id)},
+            )
+        except Exception as e:
+            logging.exception("notify_customer_order_completed push failed: %s", e)
 
     @staticmethod
     def _send_telegram_message(chat_id: int, text: str):

@@ -40,9 +40,10 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-change-me}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-0000000000:local-dev-placeholder}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-change-me-local-dev}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -65,7 +66,8 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-0000000000:local-dev-placeholder}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-change-me-local-dev}
     depends_on:
       postgres:
         condition: service_healthy

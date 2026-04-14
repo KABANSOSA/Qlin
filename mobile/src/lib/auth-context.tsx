@@ -7,6 +7,9 @@ interface AuthState {
   user: UserMe | null
   loading: boolean
   login: (phone: string, password: string) => Promise<void>
+  requestOtp: (phone: string) => Promise<{ dev_code?: string }>
+  loginWithOtp: (phone: string, code: string) => Promise<void>
+  loginWithAppleIdentityToken: (identityToken: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -39,16 +42,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void loadSession()
   }, [loadSession])
 
-  const login = useCallback(async (phone: string, password: string) => {
-    const { data } = await api.post<{ access_token: string; refresh_token: string }>('/auth/login', {
-      phone: phone.trim(),
-      password,
-    })
-    await SecureStore.setItemAsync('access_token', data.access_token)
-    await SecureStore.setItemAsync('refresh_token', data.refresh_token)
+  const setTokensAndUser = useCallback(async (access: string, refresh: string) => {
+    await SecureStore.setItemAsync('access_token', access)
+    await SecureStore.setItemAsync('refresh_token', refresh)
     const { data: me } = await api.get<UserMe>('/auth/me')
     setUser(me)
   }, [])
+
+  const login = useCallback(
+    async (phone: string, password: string) => {
+      const { data } = await api.post<{ access_token: string; refresh_token: string }>('/auth/login', {
+        phone: phone.trim(),
+        password,
+      })
+      await setTokensAndUser(data.access_token, data.refresh_token)
+    },
+    [setTokensAndUser],
+  )
+
+  const requestOtp = useCallback(async (phone: string) => {
+    const { data } = await api.post<{ dev_code?: string; message?: string }>('/auth/otp/request', {
+      phone: phone.trim(),
+    })
+    return data
+  }, [])
+
+  const loginWithOtp = useCallback(
+    async (phone: string, code: string) => {
+      const { data } = await api.post<{ access_token: string; refresh_token: string }>('/auth/otp/verify', {
+        phone: phone.trim(),
+        code: code.trim(),
+      })
+      await setTokensAndUser(data.access_token, data.refresh_token)
+    },
+    [setTokensAndUser],
+  )
+
+  const loginWithAppleIdentityToken = useCallback(
+    async (identityToken: string) => {
+      const { data } = await api.post<{ access_token: string; refresh_token: string }>('/auth/oauth/apple', {
+        identity_token: identityToken,
+      })
+      await setTokensAndUser(data.access_token, data.refresh_token)
+    },
+    [setTokensAndUser],
+  )
 
   const logout = useCallback(async () => {
     await SecureStore.deleteItemAsync('access_token')
@@ -61,9 +99,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading,
       login,
+      requestOtp,
+      loginWithOtp,
+      loginWithAppleIdentityToken,
       logout,
     }),
-    [user, loading, login, logout],
+    [
+      user,
+      loading,
+      login,
+      requestOtp,
+      loginWithOtp,
+      loginWithAppleIdentityToken,
+      logout,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

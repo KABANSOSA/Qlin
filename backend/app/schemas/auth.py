@@ -27,3 +27,16 @@ class TokenData(BaseModel):
     """Token data schema."""
     user_id: Optional[str] = None
     role: Optional[str] = None
+
+
+class OtpRequest(BaseModel):
+    phone: str = Field(..., min_length=10, max_length=20)
+
+
+class OtpVerify(BaseModel):
+    phone: str = Field(..., min_length=10)
+    code: str = Field(..., min_length=4, max_length=8)
+
+
+class AppleIdentityBody(BaseModel):
+    identity_token: str = Field(..., min_length=10)

@@ -52,6 +52,12 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - DEBUG=${DEBUG:-false}
+      - YOOKASSA_SHOP_ID=${YOOKASSA_SHOP_ID:-}
+      - YOOKASSA_SECRET_KEY=${YOOKASSA_SECRET_KEY:-}
+      - SMS_RU_API_ID=${SMS_RU_API_ID:-}
+      - APPLE_CLIENT_ID=${APPLE_CLIENT_ID:-}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,7 +1,7 @@
 """
 Order schemas.
 """
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 from decimal import Decimal
@@ -26,6 +26,10 @@ class OrderCreate(BaseModel):
     has_balcony: bool = False
     special_instructions: Optional[str] = None
     scheduled_at: datetime
+    service_city: Optional[Literal["khabarovsk", "yuzhno_sakhalinsk"]] = Field(
+        default=None,
+        description="Город обслуживания — подбор зоны и тарифа (Хабаровск / Южно-Сахалинск)",
+    )
 
 
 class OrderUpdate(BaseModel):
@@ -74,14 +78,14 @@ class OrderResponse(BaseModel):
     payment_method: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    special_instructions: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
 class OrderAdminResponse(OrderResponse):
-    """Расширенный заказ для CRM/админки: контакт клиента и комментарий."""
+    """Расширенный заказ для CRM/админки: контакт клиента."""
 
     customer_phone: Optional[str] = None
     customer_email: Optional[str] = None
-    special_instructions: Optional[str] = None

@@ -18,6 +18,7 @@ from app.models.payment import Payment
 from app.models.cleaner import Cleaner
 from app.schemas.order import OrderResponse, OrderAdminResponse, AssignOrderBody
 from app.schemas.cleaner_admin import AdminCreateCleanerBody
+from app.schemas.admin_user import AdminCreateAdminBody
 from app.core.security import get_password_hash
 from app.services.order_service import OrderService
 
@@ -175,6 +176,99 @@ async def get_admin_stats(
         "orders_total": int(orders_total),
         "by_status": by_status,
         "revenue_paid_rub": float(paid_sum),
+    }
+
+
+@router.post("/admins", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def admin_create_or_promote_admin(
+    body: AdminCreateAdminBody,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Создать администратора или выдать роль admin существующему клиенту (по телефону).
+    Уборщика (cleaner) через эту ручку не повышаем.
+    """
+    phone = body.phone.strip()
+    existing = db.query(User).filter(User.phone == phone).first()
+    pwd_hash = get_password_hash(body.password)
+
+    if existing:
+        if existing.role == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Этот пользователь уже администратор",
+            )
+        if existing.role == "cleaner":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Уборщика нельзя сделать администратором этой операцией",
+            )
+        if body.email:
+            other = (
+                db.query(User)
+                .filter(func.lower(User.email) == body.email.lower(), User.id != existing.id)
+                .first()
+            )
+            if other:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email уже занят другим пользователем",
+                )
+        existing.role = "admin"
+        existing.password_hash = pwd_hash
+        if body.first_name and body.first_name.strip():
+            existing.first_name = body.first_name.strip()
+        if body.email:
+            existing.email = body.email
+        db.add(existing)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Не удалось сохранить: конфликт email или телефона",
+            )
+        db.refresh(existing)
+        return {
+            "user_id": str(existing.id),
+            "phone": existing.phone,
+            "role": existing.role,
+            "promoted": True,
+        }
+
+    if body.email:
+        dup_email = db.query(User).filter(func.lower(User.email) == body.email.lower()).first()
+        if dup_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь с таким email уже есть",
+            )
+
+    user = User(
+        phone=phone,
+        first_name=body.first_name,
+        email=body.email,
+        role="admin",
+        is_active=True,
+        password_hash=pwd_hash,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось создать: телефон или email уже заняты",
+        )
+    db.refresh(user)
+    return {
+        "user_id": str(user.id),
+        "phone": user.phone,
+        "role": user.role,
+        "promoted": False,
     }
 
 

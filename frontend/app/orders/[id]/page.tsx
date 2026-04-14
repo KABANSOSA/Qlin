@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import axios from 'axios'
 import { api } from '@/lib/api'
@@ -11,6 +11,7 @@ import { formatDate, formatPrice } from '@/lib/utils'
 import Link from 'next/link'
 import { ProtectedRoute } from '@/components/protected-route'
 import { useAuth } from '@/components/providers/auth-provider'
+import { useToast } from '@/hooks/use-toast'
 import { ArrowLeft, MapPin } from 'lucide-react'
 import { getOrderStatusClassName, getOrderStatusLabel } from '@/lib/order-status'
 
@@ -29,6 +30,32 @@ function OrderDetailPageContent() {
   const params = useParams()
   const orderId = params.id as string
   const { loading: authLoading, user } = useAuth()
+  const { error: toastError } = useToast()
+
+  const payMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<{ confirmation_url: string }>(
+        `/orders/${orderId}/payment/yookassa`,
+      )
+      return data.confirmation_url
+    },
+    onSuccess: (confirmationUrl) => {
+      if (typeof window !== 'undefined' && confirmationUrl) {
+        window.location.href = confirmationUrl
+      }
+    },
+    onError: (err: unknown) => {
+      const ax = err as { response?: { status?: number; data?: { detail?: string } } }
+      const detail = ax.response?.data?.detail
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : ax.response?.status === 503
+            ? 'Оплата не настроена на сервере (ЮKassa).'
+            : 'Не удалось перейти к оплате.'
+      toastError(msg, { title: 'Оплата' })
+    },
+  })
 
   const { data: order, isLoading, error, refetch } = useQuery({
     queryKey: ['order', orderId, user?.id],
@@ -200,8 +227,14 @@ function OrderDetailPageContent() {
                 <p className="text-3xl font-semibold tabular-nums text-foreground md:text-4xl">{formatPrice(order.total_price)}</p>
               </div>
               {order.status === 'completed' && order.payment_status !== 'paid' && (
-                <Button size="lg" variant="cta" className="w-full sm:w-auto">
-                  Оплатить
+                <Button
+                  size="lg"
+                  variant="cta"
+                  className="w-full sm:w-auto"
+                  disabled={payMutation.isPending}
+                  onClick={() => payMutation.mutate()}
+                >
+                  {payMutation.isPending ? 'Переход к оплате…' : 'Оплатить'}
                 </Button>
               )}
             </div>

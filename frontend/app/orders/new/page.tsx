@@ -48,6 +48,12 @@ function localDateTimeToUtcIso(dateStr: string, timeStr: string): string {
 
 type OrderForm = z.infer<typeof orderSchema>
 
+/** Совпадение с бэкендом OrderCreate.service_city + seed зон. */
+const WEB_CITY_TO_SERVICE_CITY: Partial<Record<string, 'khabarovsk' | 'yuzhno_sakhalinsk'>> = {
+  Хабаровск: 'khabarovsk',
+  'Южно-Сахалинск': 'yuzhno_sakhalinsk',
+}
+
 function NewOrderPageContent() {
   const router = useRouter()
   const { success, error: showError } = useToast()
@@ -152,7 +158,9 @@ function NewOrderPageContent() {
         return
       }
 
-      // zone_id-заглушка: бэкенд подставит первую активную зону из БД, пока нет геопривязки
+      const serviceCity = WEB_CITY_TO_SERVICE_CITY[selectedCity]
+
+      // zone_id-заглушка: бэкенд подставит зону (по service_city или первую активную)
       const orderData = {
         ...data,
         scheduled_at: scheduledAtIso,
@@ -161,6 +169,7 @@ function NewOrderPageContent() {
         has_balcony: false,
         address_lat: addressCoordinates.lat,
         address_lon: addressCoordinates.lon,
+        ...(serviceCity ? { service_city: serviceCity } : {}),
       }
 
       const response = await api.post('/orders', orderData)
@@ -282,10 +291,35 @@ function NewOrderPageContent() {
                     isGeocodingRef.current = true
                     geocodeTimeoutRef.current = setTimeout(async () => {
                       try {
-                        const { geocodeAddress } = await import('@/lib/yandex-maps')
-                        const results = await geocodeAddress(address, 1)
-                        if (results.length > 0 && results[0].coordinates) {
-                          setAddressCoordinates(results[0].coordinates)
+                        const fullQuery = selectedCity ? `${address}, ${selectedCity}` : address
+                        let coords: { lat: number; lon: number } | null = null
+
+                        if (typeof window !== 'undefined' && window.ymaps) {
+                          try {
+                            const { geocodeAddress } = await import('@/lib/yandex-maps')
+                            const results = await geocodeAddress(fullQuery, 1)
+                            if (results.length > 0 && results[0].coordinates) {
+                              coords = results[0].coordinates
+                            }
+                          } catch {
+                            /* без ключа / лимит — пробуем Nominatim */
+                          }
+                        }
+
+                        if (!coords) {
+                          const { geocodeNominatim } = await import('@/lib/nominatim-geocode')
+                          const rows = await geocodeNominatim(fullQuery, {
+                            countrycodes: 'ru',
+                            limit: 1,
+                          })
+                          if (rows.length > 0) {
+                            coords = { lat: rows[0].lat, lon: rows[0].lon }
+                            setValue('address', rows[0].displayName, { shouldValidate: true })
+                          }
+                        }
+
+                        if (coords) {
+                          setAddressCoordinates(coords)
                           setError(null)
                         } else {
                           setAddressCoordinates(null)

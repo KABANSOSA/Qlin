@@ -280,18 +280,37 @@ export function AddressSelector({
             markerRef.current.geometry.setCoordinates(mapCoords)
           }
         } else {
-          // Fallback: use address without coordinates
-          onChange(suggestion.value, undefined)
+          await tryNominatimForSuggestion(suggestion.value)
         }
       } catch (error) {
         console.error('Geocoding error:', error)
-        // Fallback: use address without coordinates
-        onChange(suggestion.value, undefined)
+        await tryNominatimForSuggestion(suggestion.value)
       }
     } else {
-      // If maps not loaded, just use the address
-      onChange(suggestion.value, undefined)
+      await tryNominatimForSuggestion(suggestion.value)
     }
+  }
+
+  async function tryNominatimForSuggestion(query: string) {
+    try {
+      const { geocodeNominatim } = await import('@/lib/nominatim-geocode')
+      const rows = await geocodeNominatim(query, { countrycodes: 'ru', limit: 1 })
+      if (rows.length > 0) {
+        const hit = rows[0]
+        const coords = { lat: hit.lat, lon: hit.lon }
+        onChange(hit.displayName, coords)
+        setSelectedCoordinates(coords)
+        if (mapInstanceRef.current && markerRef.current) {
+          const mapCoords = [coords.lon, coords.lat]
+          mapInstanceRef.current.setCenter(mapCoords, 15)
+          markerRef.current.geometry.setCoordinates(mapCoords)
+        }
+        return
+      }
+    } catch (e) {
+      console.error('Nominatim geocode error:', e)
+    }
+    onChange(query, undefined)
   }
 
   const handleMapToggle = () => {

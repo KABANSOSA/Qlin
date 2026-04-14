@@ -69,6 +69,12 @@ class OrderService:
             )
         return fallback.id
 
+    # Ключ из мобильного/веба → колонка Zone.city (см. seed)
+    SERVICE_CITY_TO_ZONE_CITY = {
+        "khabarovsk": "Хабаровск",
+        "yuzhno_sakhalinsk": "Южно-Сахалинск",
+    }
+
     @staticmethod
     def create_order(
         db: Session,
@@ -77,6 +83,18 @@ class OrderService:
     ) -> Order:
         """Create a new order."""
         order_data = dict(order_data)
+        service_city = order_data.pop("service_city", None)
+        if service_city:
+            city_label = OrderService.SERVICE_CITY_TO_ZONE_CITY.get(service_city)
+            if city_label:
+                zone_by_city = (
+                    db.query(Zone)
+                    .filter(Zone.city == city_label, Zone.is_active.is_(True))
+                    .order_by(Zone.created_at.asc())
+                    .first()
+                )
+                if zone_by_city:
+                    order_data["zone_id"] = zone_by_city.id
         order_data["zone_id"] = OrderService.resolve_zone_id(db, order_data["zone_id"])
 
         # Calculate price
@@ -221,6 +239,23 @@ class OrderService:
             query = query.filter(Order.status == status)
 
         return query.order_by(Order.created_at.desc()).limit(limit).offset(offset).all()
+
+    @staticmethod
+    def list_available_orders(
+        db: Session,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Order]:
+        """Свободные заказы: pending, без исполнителя (для ленты клинера)."""
+        return (
+            db.query(Order)
+            .filter(Order.status == OrderStatus.PENDING.value)
+            .filter(Order.cleaner_id.is_(None))
+            .order_by(Order.scheduled_at.asc())
+            .limit(limit)
+            .offset(offset)
+            .all()
+        )
 
     @staticmethod
     def get_order(db: Session, order_id: UUID) -> Optional[Order]:
