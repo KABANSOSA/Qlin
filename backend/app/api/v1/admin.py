@@ -50,7 +50,6 @@ async def get_all_orders(
                 **base.model_dump(),
                 customer_phone=phone,
                 customer_email=email,
-                special_instructions=order.special_instructions,
             )
         )
     return out
