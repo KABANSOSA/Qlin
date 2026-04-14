@@ -2,12 +2,21 @@
 Application configuration using Pydantic settings.
 """
 from typing import List, Optional
-from pydantic_settings import BaseSettings
-from pydantic import Field
+from urllib.parse import urlparse
+
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        # docker-compose / frontend кладут в общий .env переменные вроде POSTGRES_*, NEXT_PUBLIC_*
+        extra="ignore",
+    )
 
     # App
     APP_NAME: str = "QLIN"
@@ -20,6 +29,15 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
     DB_ECHO: bool = Field(default=False, env="DB_ECHO")
+
+    # Из общего .env / docker-compose (для postgres, фронта) — бэкенд не читает, но они не должны ломать Settings()
+    POSTGRES_USER: Optional[str] = Field(default=None, env="POSTGRES_USER")
+    POSTGRES_PASSWORD: Optional[str] = Field(default=None, env="POSTGRES_PASSWORD")
+    POSTGRES_DB: Optional[str] = Field(default=None, env="POSTGRES_DB")
+    NEXT_PUBLIC_API_URL: Optional[str] = Field(default=None, env="NEXT_PUBLIC_API_URL")
+    NEXT_PUBLIC_PUBLIC_SITE_URL: Optional[str] = Field(default=None, env="NEXT_PUBLIC_PUBLIC_SITE_URL")
+    NEXT_PUBLIC_SITE_URL: Optional[str] = Field(default=None, env="NEXT_PUBLIC_SITE_URL")
+    NEXT_PUBLIC_YANDEX_MAPS_API_KEY: Optional[str] = Field(default=None, env="NEXT_PUBLIC_YANDEX_MAPS_API_KEY")
 
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
@@ -44,20 +62,59 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Parse CORS_ORIGINS string into list."""
+        """
+        Список origin для CORS + автоматически https://crm.<домен> по PUBLIC_SITE_URL,
+        если в CORS_ORIGINS забыли поддомен CRM (типичная причина «Нет связи с API» в crm.*).
+        """
         if isinstance(self.CORS_ORIGINS, str):
-            return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
-        return self.CORS_ORIGINS if isinstance(self.CORS_ORIGINS, list) else []
+            out = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        else:
+            out = list(self.CORS_ORIGINS) if isinstance(self.CORS_ORIGINS, list) else []
+        seen_lower = {o.lower() for o in out}
+        try:
+            pu = urlparse(self.PUBLIC_SITE_URL.strip())
+            host = (pu.hostname or "").lower()
+            if host.startswith("www."):
+                host = host[4:]
+            if host and host not in ("localhost", "127.0.0.1"):
+                crm_origin = f"https://crm.{host}"
+                if crm_origin.lower() not in seen_lower:
+                    out.append(crm_origin)
+                    seen_lower.add(crm_origin.lower())
+        except Exception:
+            pass
+        return out
 
-    # Telegram Bot
-    TELEGRAM_BOT_TOKEN: str = Field(..., env="TELEGRAM_BOT_TOKEN")
-    TELEGRAM_WEBHOOK_SECRET: str = Field(..., env="TELEGRAM_WEBHOOK_SECRET")
+    # Telegram Bot (в .env на проде — реальные значения; для локального Docker см. docker-compose.yml)
+    TELEGRAM_BOT_TOKEN: str = Field(
+        default="0000000000:local-dev-placeholder",
+        env="TELEGRAM_BOT_TOKEN",
+    )
+    TELEGRAM_WEBHOOK_SECRET: str = Field(
+        default="change-me-local-dev",
+        env="TELEGRAM_WEBHOOK_SECRET",
+    )
     TELEGRAM_API_URL: str = "https://api.telegram.org/bot"
+
+    @field_validator("TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", mode="before")
+    @classmethod
+    def telegram_non_empty(cls, v: object, info: ValidationInfo) -> object:
+        """Пустая строка в .env / Docker не должна ломать загрузку настроек."""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            if info.field_name == "TELEGRAM_BOT_TOKEN":
+                return "0000000000:local-dev-placeholder"
+            return "change-me-local-dev"
+        return v
 
     # Payment
     PAYMENT_PROVIDER: str = Field(default="yookassa", env="PAYMENT_PROVIDER")
     YOOKASSA_SHOP_ID: str = Field(default="", env="YOOKASSA_SHOP_ID")
     YOOKASSA_SECRET_KEY: str = Field(default="", env="YOOKASSA_SECRET_KEY")
+
+    # SMS.ru — OTP вход (https://sms.ru)
+    SMS_RU_API_ID: Optional[str] = Field(default=None, env="SMS_RU_API_ID")
+    # Apple Sign In — проверка aud в identity_token (Bundle ID / Service ID)
+    APPLE_CLIENT_ID: Optional[str] = Field(default=None, env="APPLE_CLIENT_ID")
 
     # Celery
     CELERY_BROKER_URL: str = Field(
@@ -70,9 +127,8 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    # Сид: задать пароль пользователю +79999999999 (роль admin) для первого входа в CRM
+    SEED_ADMIN_PASSWORD: Optional[str] = Field(default=None, env="SEED_ADMIN_PASSWORD")
 
 
 settings = Settings()

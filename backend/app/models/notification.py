@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
-from app.db.database import Base
+from app.db.base import Base
 
 
 class Notification(Base):

@@ -8,15 +8,24 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.core.config import settings
-from app.db.database import Base
-from app.models import *  # noqa
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Base и модели без импорта app.core.config (общий .env не должен ломать Alembic)
+from app.db.base import Base
+from app.models import *  # noqa: F401,F403
 
 # this is the Alembic Config object
 config = context.config
 
-# Override sqlalchemy.url with settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+database_url = os.environ.get("DATABASE_URL")
+if not database_url:
+    raise RuntimeError(
+        "DATABASE_URL не задан. В Docker он задаётся в docker-compose; "
+        "локально: export DATABASE_URL=... или .env рядом с рабочей директорией."
+    )
+config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:

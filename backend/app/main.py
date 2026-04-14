@@ -7,11 +7,10 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.api.v1 import api_router
-from app.db.database import engine
-from app.models import Base
+
+import app.models  # noqa: F401 — регистрация ORM-моделей
 
 # Note: Tables are created via Alembic migrations, not here
-# Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="QLIN API",
