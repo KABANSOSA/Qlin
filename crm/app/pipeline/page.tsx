@@ -9,6 +9,7 @@ import { CrmShell } from '@/components/crm-shell'
 import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
 import { AssignCleanerModal, type AssignOrderMinimal } from '@/components/assign-cleaner-modal'
+import { OrderStageSelect } from '@/components/order-stage-select'
 
 interface CrmOrder {
   id: string
@@ -69,8 +70,9 @@ export default function CrmPipelinePage() {
       <main className="mx-auto max-w-[1600px] px-4 py-8">
         <h1 className="text-xl font-bold tracking-tight">Воронка</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Новые заявки — колонка «Новый». Назначьте клинера кнопкой ниже; заказ перейдёт в «Назначен». То же можно сделать
-          на странице <strong>Заявки</strong>.
+          Переносите этапы через поле «Этап» на карточке (с подтверждением). Из «Новый» в «Назначен» удобнее кнопкой{' '}
+          <strong>Назначить клинера</strong> — так же на странице <strong>Заявки</strong>. Недоступные переходы API
+          отклонит с пояснением.
         </p>
 
         {ordersError && (
@@ -120,6 +122,9 @@ export default function CrmPipelinePage() {
                       </div>
                       <div className="mt-1 text-[10px] text-muted-foreground">
                         Оплата: {o.payment_status}
+                      </div>
+                      <div className="mt-2">
+                        <OrderStageSelect orderId={o.id} status={o.status} compact />
                       </div>
                       {col.key === 'pending' && o.status === 'pending' && (
                         <button

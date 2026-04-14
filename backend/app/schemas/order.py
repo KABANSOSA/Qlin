@@ -51,6 +51,16 @@ class AssignOrderBody(BaseModel):
     cleaner_id: UUID
 
 
+class AdminSetOrderStatusBody(BaseModel):
+    """Смена этапа воронки из CRM (диспетчер)."""
+
+    status: str = Field(
+        ...,
+        min_length=1,
+        description="pending | assigned | in_progress | completed | cancelled",
+    )
+
+
 class OrderResponse(BaseModel):
     """Schema for order response."""
     id: UUID

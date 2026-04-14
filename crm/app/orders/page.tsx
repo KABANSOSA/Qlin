@@ -12,6 +12,7 @@ import { CrmAccessBarrier } from '@/components/crm-access-barrier'
 import { useCrmAccess } from '@/lib/use-crm-access'
 import { getPublicOrderUrl } from '@/lib/public-site'
 import { AssignCleanerModal, type AssignOrderMinimal } from '@/components/assign-cleaner-modal'
+import { OrderStageSelect } from '@/components/order-stage-select'
 
 interface CrmOrder {
   id: string
@@ -50,6 +51,20 @@ function statusLabel(s: string) {
   return m[s] || s
 }
 
+function ordersLoadErrorHint(err: unknown): string | null {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const r = (err as { response?: { status?: number; data?: { detail?: unknown } } }).response
+    if (r?.status != null) {
+      const d = r.data?.detail
+      const tail =
+        typeof d === 'string' ? d : d != null ? JSON.stringify(d) : ''
+      return tail ? `HTTP ${r.status}: ${tail}` : `HTTP ${r.status}`
+    }
+  }
+  if (err instanceof Error) return err.message
+  return null
+}
+
 function statusClass(s: string) {
   const map: Record<string, string> = {
     pending: 'bg-amber-100 text-amber-900',
@@ -84,6 +99,8 @@ export default function CrmOrdersPage() {
     staleTime: 30_000,
   })
 
+  const ordersErrHint = ordersError ? ordersLoadErrorHint(ordersError) : null
+
   if (loading || error || !user) {
     return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
@@ -116,7 +133,12 @@ export default function CrmOrdersPage() {
 
         {ordersError && (
           <div className="mb-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
-            <span>Не удалось загрузить заявки.</span>
+            <span className="flex flex-col gap-1">
+              <span>Не удалось загрузить заявки.</span>
+              {ordersErrHint && (
+                <span className="break-all font-mono text-xs opacity-90">{ordersErrHint}</span>
+              )}
+            </span>
             <button
               type="button"
               onClick={() => refetch()}
@@ -133,7 +155,7 @@ export default function CrmOrdersPage() {
               <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted" />
             ))}
           </div>
-        ) : !orders?.length ? (
+        ) : ordersError ? null : !orders?.length ? (
           <div className="rounded-2xl border border-dashed border-border bg-card py-16 text-center text-sm text-muted-foreground">
             Нет заявок
           </div>
@@ -165,7 +187,8 @@ export default function CrmOrdersPage() {
                     </span>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="mt-3 flex flex-wrap items-end gap-4">
+                  <OrderStageSelect orderId={o.id} status={o.status} />
                   <a
                     href={getPublicOrderUrl(o.id)}
                     target="_blank"

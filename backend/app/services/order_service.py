@@ -4,7 +4,7 @@ Order service for business logic.
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from app.models.order import Order
@@ -261,3 +261,167 @@ class OrderService:
     def get_order(db: Session, order_id: UUID) -> Optional[Order]:
         """Get order by ID."""
         return db.query(Order).filter(Order.id == order_id).first()
+
+    _FUNNEL_STATUSES = frozenset(
+        {"pending", "assigned", "in_progress", "completed", "cancelled"}
+    )
+
+    @staticmethod
+    def _admin_log_status_change(
+        db: Session,
+        order: Order,
+        old: str,
+        new: str,
+        admin_id: UUID,
+    ) -> None:
+        from app.models.order_event import OrderEvent
+
+        db.add(
+            OrderEvent(
+                order_id=order.id,
+                event_type="admin_status_change",
+                from_status=old,
+                to_status=new,
+                actor_id=admin_id,
+                actor_type="admin",
+                event_metadata={"manual_override": True},
+            )
+        )
+
+    @staticmethod
+    def _admin_apply_manual_status(
+        db: Session,
+        order: Order,
+        old: str,
+        new: str,
+        admin_id: UUID,
+    ) -> bool:
+        """Переходы вне стандартной матрицы FSM (откат, быстрый финиш, возобновление)."""
+        utcnow = lambda: datetime.now(timezone.utc)
+
+        pair = (old, new)
+
+        if pair in (("assigned", "pending"), ("in_progress", "pending")):
+            order.status = "pending"
+            order.cleaner_id = None
+            order.started_at = None
+            order.completed_at = None
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        if pair == ("in_progress", "assigned"):
+            order.status = "assigned"
+            order.started_at = None
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        if pair == ("completed", "in_progress"):
+            if not order.cleaner_id:
+                return False
+            order.status = "in_progress"
+            order.completed_at = None
+            if order.started_at is None:
+                order.started_at = utcnow()
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        if pair == ("completed", "assigned"):
+            if not order.cleaner_id:
+                return False
+            order.status = "assigned"
+            order.completed_at = None
+            order.started_at = None
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        if pair == ("completed", "pending"):
+            order.status = "pending"
+            order.cleaner_id = None
+            order.started_at = None
+            order.completed_at = None
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        if pair == ("cancelled", "pending"):
+            order.status = "pending"
+            order.cleaner_id = None
+            order.started_at = None
+            order.completed_at = None
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        if pair == ("assigned", "completed"):
+            if not order.cleaner_id:
+                return False
+            order.status = "completed"
+            if order.completed_at is None:
+                order.completed_at = utcnow()
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
+        return False
+
+    @staticmethod
+    def admin_set_order_status(
+        db: Session,
+        order_id: UUID,
+        new_status: str,
+        admin_id: UUID,
+    ) -> Order:
+        """
+        Смена этапа воронки диспетчером: сначала стандартный FSM, иначе ручные переходы.
+        """
+        if new_status not in OrderService._FUNNEL_STATUSES:
+            raise ValueError(
+                "Допустимые этапы: pending, assigned, in_progress, completed, cancelled"
+            )
+
+        lock_key = f"order_transition:{order_id}"
+        with redis_lock(lock_key, timeout=10, expire=15) as acquired:
+            if not acquired:
+                raise ValueError("Заказ занят другой операцией, повторите позже")
+
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if not order:
+                raise ValueError("Заказ не найден")
+
+            old = order.status
+            if old == new_status:
+                return order
+
+            if old == "paid":
+                raise ValueError("Заказ в статусе «Оплачен» — смена этапа вручную недоступна")
+
+            if old == "pending" and new_status == "assigned":
+                raise ValueError(
+                    "Из «Новый» в «Назначен» используйте «Назначить клинера» — нужен исполнитель."
+                )
+
+            if OrderStateMachine.can_transition(old, new_status):
+                ok = OrderStateMachine.transition(
+                    db=db,
+                    order=order,
+                    new_status=new_status,
+                    actor_id=str(admin_id),
+                    actor_type="admin",
+                )
+                if ok:
+                    db.refresh(order)
+                    return order
+                raise ValueError("Не удалось применить переход (конфликт состояния)")
+
+            if OrderService._admin_apply_manual_status(db, order, old, new_status, admin_id):
+                db.refresh(order)
+                return order
+
+            raise ValueError(
+                f"Переход «{old}» → «{new_status}» сейчас недоступен. "
+                "Проверьте этап и наличие клинера; из «Новый» в «Назначен» используйте «Назначить клинера»."
+            )

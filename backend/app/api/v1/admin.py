@@ -16,7 +16,12 @@ from app.models.user import User
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.cleaner import Cleaner
-from app.schemas.order import OrderResponse, OrderAdminResponse, AssignOrderBody
+from app.schemas.order import (
+    OrderResponse,
+    OrderAdminResponse,
+    AssignOrderBody,
+    AdminSetOrderStatusBody,
+)
 from app.schemas.cleaner_admin import AdminCreateCleanerBody
 from app.schemas.admin_user import AdminCreateAdminBody
 from app.core.security import get_password_hash
@@ -151,6 +156,23 @@ async def admin_assign_order(
             detail="Заказ не найден, уже назначен или занят другим процессом",
         )
     return {"status": "assigned", "order_id": str(order_id), "cleaner_id": str(body.cleaner_id)}
+
+
+@router.patch("/orders/{order_id}/status", response_model=OrderResponse)
+async def admin_patch_order_status(
+    order_id: UUID,
+    body: AdminSetOrderStatusBody,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Смена этапа воронки вручную (диспетчер CRM): FSM + откаты/быстрый финиш."""
+    try:
+        order = OrderService.admin_set_order_status(
+            db, order_id, body.status.strip(), current_user.id
+        )
+        return OrderResponse.model_validate(order)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/stats", response_model=Dict[str, Any])
