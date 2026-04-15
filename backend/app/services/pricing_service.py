@@ -1,7 +1,7 @@
 """
 Pricing service for calculating order prices.
 """
-from typing import Dict, Optional
+from typing import Dict, Optional, Mapping, Any
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
@@ -38,6 +38,7 @@ class PricingService:
         rooms_count: int = 1,
         bathrooms_count: int = 1,
         area_sqm: Optional[Decimal] = None,
+        extra_services: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Decimal]:
         """
         Расчёт по публичным правилам (база 3 300 ₽ до 50 м², +30 ₽/м² свыше 50).
@@ -59,6 +60,45 @@ class PricingService:
         extra_services_price = Decimal("0")
         if bathrooms_count > 1:
             extra_services_price += Decimal("500") * (bathrooms_count - 1)
+
+        extras = dict(extra_services or {})
+
+        def as_int(name: str) -> int:
+            raw = extras.get(name, 0)
+            try:
+                return max(0, int(raw))
+            except (TypeError, ValueError):
+                return 0
+
+        def as_bool(name: str) -> bool:
+            raw = extras.get(name, False)
+            if isinstance(raw, bool):
+                return raw
+            if isinstance(raw, (int, float)):
+                return raw != 0
+            if isinstance(raw, str):
+                return raw.strip().lower() in {"1", "true", "yes", "on", "да"}
+            return False
+
+        if as_bool("fridge"):
+            extra_services_price += Decimal("500")
+        if as_bool("microwave"):
+            extra_services_price += Decimal("300")
+        if as_bool("oven"):
+            extra_services_price += Decimal("300")
+        if as_bool("balcony_with_windows"):
+            extra_services_price += Decimal("1000")
+        if as_bool("balcony_without_windows"):
+            extra_services_price += Decimal("500")
+
+        extra_services_price += Decimal("150") * as_int("windows")
+
+        dishes_count = as_int("dishes")
+        if dishes_count > 10:
+            extra_services_price += Decimal("10") * (dishes_count - 10)
+
+        extra_services_price += Decimal("70") * as_int("ironing")
+        extra_services_price += Decimal("200") * as_int("bedding_sets")
 
         total_price = base_price + extra_services_price
 

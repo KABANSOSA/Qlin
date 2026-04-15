@@ -54,11 +54,36 @@ const WEB_CITY_TO_SERVICE_CITY: Partial<Record<string, 'khabarovsk' | 'yuzhno_sa
   'Южно-Сахалинск': 'yuzhno_sakhalinsk',
 }
 
+type ExtraServices = {
+  fridge: boolean
+  microwave: boolean
+  oven: boolean
+  balcony_with_windows: boolean
+  balcony_without_windows: boolean
+  windows: number
+  dishes: number
+  ironing: number
+  bedding_sets: number
+}
+
+const DEFAULT_EXTRA_SERVICES: ExtraServices = {
+  fridge: false,
+  microwave: false,
+  oven: false,
+  balcony_with_windows: false,
+  balcony_without_windows: false,
+  windows: 0,
+  dishes: 0,
+  ironing: 0,
+  bedding_sets: 0,
+}
+
 function NewOrderPageContent() {
   const router = useRouter()
   const { success, error: showError } = useToast()
   const [error, setError] = useState<string | null>(null)
   const [price, setPrice] = useState<number | null>(null)
+  const [extraServices, setExtraServices] = useState<ExtraServices>(DEFAULT_EXTRA_SERVICES)
   const [addressCoordinates, setAddressCoordinates] = useState<{ lat: number; lon: number } | null>(null)
   const [selectedCity, setSelectedCity] = useState<string>('')
   const [schedDate, setSchedDate] = useState('')
@@ -95,15 +120,28 @@ function NewOrderPageContent() {
     const AREA_THRESHOLD = 50
     const PRICE_PER_EXTRA_SQM = 30
     const area = (areaSqmNum != null && areaSqmNum > 0) ? areaSqmNum : (roomsCount * 25) // примерная площадь по комнатам, если не указана
-    const calculated = area <= AREA_THRESHOLD
+    const baseCalculated = area <= AREA_THRESHOLD
       ? BASE_PRICE
       : BASE_PRICE + (area - AREA_THRESHOLD) * PRICE_PER_EXTRA_SQM
-    setPrice(Math.round(calculated))
+
+    let extrasCalculated = 0
+    if (bathroomsCount > 1) extrasCalculated += (bathroomsCount - 1) * 500
+    if (extraServices.fridge) extrasCalculated += 500
+    if (extraServices.microwave) extrasCalculated += 300
+    if (extraServices.oven) extrasCalculated += 300
+    if (extraServices.balcony_with_windows) extrasCalculated += 1000
+    if (extraServices.balcony_without_windows) extrasCalculated += 500
+    extrasCalculated += Math.max(0, extraServices.windows) * 150
+    extrasCalculated += Math.max(0, extraServices.dishes - 10) * 10
+    extrasCalculated += Math.max(0, extraServices.ironing) * 70
+    extrasCalculated += Math.max(0, extraServices.bedding_sets) * 200
+
+    setPrice(Math.round(baseCalculated + extrasCalculated))
   }
 
   useEffect(() => {
     calculatePrice()
-  }, [roomsCount, areaSqmNum])
+  }, [roomsCount, bathroomsCount, areaSqmNum, extraServices])
 
   // Удобный слот по умолчанию: завтра, 10:00 (локальное время)
   useEffect(() => {
@@ -159,6 +197,25 @@ function NewOrderPageContent() {
       }
 
       const serviceCity = WEB_CITY_TO_SERVICE_CITY[selectedCity]
+      const extrasLines: string[] = []
+      if (extraServices.fridge) extrasLines.push('Помыть холодильник (+500 ₽)')
+      if (extraServices.microwave) extrasLines.push('Помыть СВЧ (+300 ₽)')
+      if (extraServices.oven) extrasLines.push('Помыть духовку (+300 ₽)')
+      if (extraServices.balcony_with_windows) extrasLines.push('Убрать балкон (с окнами) (+1000 ₽)')
+      if (extraServices.balcony_without_windows) extrasLines.push('Убрать балкон (без окон) (+500 ₽)')
+      if (extraServices.windows > 0) extrasLines.push(`Окна: ${extraServices.windows} шт. (+${extraServices.windows * 150} ₽)`)
+      if (extraServices.dishes > 0) {
+        const paid = Math.max(0, extraServices.dishes - 10)
+        extrasLines.push(`Посуда: ${extraServices.dishes} шт. (${paid > 0 ? `+${paid * 10} ₽` : 'до 10 бесплатно'})`)
+      }
+      if (extraServices.ironing > 0) extrasLines.push(`Глажка одежды: ${extraServices.ironing} шт. (+${extraServices.ironing * 70} ₽)`)
+      if (extraServices.bedding_sets > 0) {
+        extrasLines.push(`Замена постельного: ${extraServices.bedding_sets} комплект(ов) (+${extraServices.bedding_sets * 200} ₽)`)
+      }
+
+      const mergedInstructions = [data.special_instructions?.trim(), extrasLines.length ? `Доп. услуги:\n- ${extrasLines.join('\n- ')}` : '']
+        .filter(Boolean)
+        .join('\n\n')
 
       // zone_id-заглушка: бэкенд подставит зону (по service_city или первую активную)
       const orderData = {
@@ -167,6 +224,8 @@ function NewOrderPageContent() {
         zone_id: '00000000-0000-0000-0000-000000000000',
         has_pets: false,
         has_balcony: false,
+        extra_services: extraServices,
+        special_instructions: mergedInstructions || undefined,
         address_lat: addressCoordinates.lat,
         address_lon: addressCoordinates.lon,
         ...(serviceCity ? { service_city: serviceCity } : {}),
@@ -464,6 +523,82 @@ function NewOrderPageContent() {
                 className="h-12 text-base border-2 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 transition-all duration-200"
                 {...register('area_sqm')}
               />
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-surface-muted/40 p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-foreground">Дополнительные услуги</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Добавьте нужные позиции — они учитываются в расчёте цены.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {[
+                  { key: 'fridge', label: 'Помыть холодильник', price: 500 },
+                  { key: 'microwave', label: 'Помыть СВЧ', price: 300 },
+                  { key: 'oven', label: 'Помыть духовку', price: 300 },
+                  { key: 'balcony_with_windows', label: 'Убрать балкон (с окнами)', price: 1000 },
+                  { key: 'balcony_without_windows', label: 'Убрать балкон (без окон)', price: 500 },
+                ].map((item) => (
+                  <label key={item.key} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={extraServices[item.key as keyof ExtraServices] as boolean}
+                      onChange={(e) =>
+                        setExtraServices((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                      }
+                    />
+                    <span className="flex-1">{item.label}</span>
+                    <span className="font-medium">+{item.price} ₽</span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-xs text-muted-foreground">
+                  Окна (шт.) +150 ₽/шт
+                  <Input
+                    type="number"
+                    min={0}
+                    value={extraServices.windows}
+                    onChange={(e) =>
+                      setExtraServices((prev) => ({ ...prev, windows: Math.max(0, Number(e.target.value) || 0) }))
+                    }
+                    className="mt-1"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Посуда (шт.) 10 ₽/шт, до 10 бесплатно
+                  <Input
+                    type="number"
+                    min={0}
+                    value={extraServices.dishes}
+                    onChange={(e) =>
+                      setExtraServices((prev) => ({ ...prev, dishes: Math.max(0, Number(e.target.value) || 0) }))
+                    }
+                    className="mt-1"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Глажка одежды (шт.) +70 ₽/шт
+                  <Input
+                    type="number"
+                    min={0}
+                    value={extraServices.ironing}
+                    onChange={(e) =>
+                      setExtraServices((prev) => ({ ...prev, ironing: Math.max(0, Number(e.target.value) || 0) }))
+                    }
+                    className="mt-1"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Замена постельного (комплект) +200 ₽/комплект
+                  <Input
+                    type="number"
+                    min={0}
+                    value={extraServices.bedding_sets}
+                    onChange={(e) =>
+                      setExtraServices((prev) => ({ ...prev, bedding_sets: Math.max(0, Number(e.target.value) || 0) }))
+                    }
+                    className="mt-1"
+                  />
+                </label>
+              </div>
             </div>
 
             {price && (

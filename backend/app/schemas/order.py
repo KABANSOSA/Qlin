@@ -25,6 +25,10 @@ class OrderCreate(BaseModel):
     has_pets: bool = False
     has_balcony: bool = False
     special_instructions: Optional[str] = None
+    extra_services: Optional[dict] = Field(
+        default=None,
+        description="Доп. услуги: fridge,microwave,oven,balcony_with_windows,balcony_without_windows,windows,dishes,ironing,bedding_sets",
+    )
     scheduled_at: datetime
     service_city: Optional[Literal["khabarovsk", "yuzhno_sakhalinsk"]] = Field(
         default=None,

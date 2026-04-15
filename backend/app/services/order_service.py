@@ -106,6 +106,7 @@ class OrderService:
             rooms_count=order_data.get("rooms_count", 1),
             bathrooms_count=order_data.get("bathrooms_count", 1),
             area_sqm=order_data.get("area_sqm"),
+            extra_services=order_data.get("extra_services"),
         )
 
         alat, alon = OrderService._normalize_lat_lon(

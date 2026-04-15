@@ -112,10 +112,15 @@ export default function PricingPage() {
           </div>
           <div className="relative grid gap-6 md:grid-cols-2">
             {[
-              { icon: Droplet, title: 'Мойка посуды', unit: 'за единицу', price: '10 ₽', desc: 'Поштучно, по согласованию в заказе' },
-              { icon: Shirt, title: 'Глажка одежды', unit: 'за единицу', price: '70 ₽', desc: 'Аккуратная обработка вещей' },
-              { icon: Bed, title: 'Смена постельного белья', unit: 'за комплект', price: '200 ₽', desc: 'Заправка и замена по запросу' },
-              { icon: Square, title: 'Мойка окон', unit: 'за единицу', price: '150 ₽', desc: 'Стеклопакеты и рамы — в рамках заказа' },
+              { icon: Droplet, title: 'Помыть холодильник', unit: 'фикс', price: '500 ₽', desc: 'Дополнительно к базовой уборке' },
+              { icon: Droplet, title: 'Помыть СВЧ', unit: 'фикс', price: '300 ₽', desc: 'Чистка внутри и снаружи' },
+              { icon: Droplet, title: 'Помыть духовку', unit: 'фикс', price: '300 ₽', desc: 'Удаление загрязнений внутри' },
+              { icon: Home, title: 'Балкон с окнами', unit: 'фикс', price: '1 000 ₽', desc: 'Полная уборка балкона с мойкой окон' },
+              { icon: Home, title: 'Балкон без окон', unit: 'фикс', price: '500 ₽', desc: 'Уборка балкона без мойки окон' },
+              { icon: Square, title: 'Мойка окон', unit: 'за 1 окно', price: '150 ₽', desc: 'Поштучно' },
+              { icon: Droplet, title: 'Мойка посуды', unit: 'за 1 шт.', price: '10 ₽', desc: 'До 10 штук бесплатно, далее 10 ₽/шт' },
+              { icon: Shirt, title: 'Глажка одежды', unit: 'за 1 шт.', price: '70 ₽', desc: 'Аккуратная обработка вещей' },
+              { icon: Bed, title: 'Замена постельного', unit: 'за комплект', price: '200 ₽', desc: 'Смена и заправка постели' },
             ].map((item) => (
               <Card key={item.title} className="card-tech-glow border-border/70 hover-lift-subtle transition-[box-shadow,transform] duration-300">
                 <CardHeader className="flex flex-row items-start gap-4 space-y-0 p-6">
