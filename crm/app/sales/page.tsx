@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -171,7 +171,7 @@ function SortTh({
   )
 }
 
-export default function CrmSalesPage() {
+function CrmSalesPageContent() {
   const { loading, user, error, retry } = useCrmAccess()
   const qc = useQueryClient()
   const searchParams = useSearchParams()
@@ -1675,5 +1675,19 @@ export default function CrmSalesPage() {
         </div>
       )}
     </CrmShell>
+  )
+}
+
+export default function CrmSalesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center bg-background text-sm text-muted-foreground">
+          Загрузка…
+        </div>
+      }
+    >
+      <CrmSalesPageContent />
+    </Suspense>
   )
 }
