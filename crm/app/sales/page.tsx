@@ -47,6 +47,8 @@ interface Opportunity {
   estimated_value_rub: string | null
   linked_order_id: string | null
   source: string | null
+  address: string | null
+  area_sqm: string | null
   assigned_to_id: string | null
   assigned_to_phone: string | null
   created_at: string
@@ -162,6 +164,8 @@ export default function CrmSalesPage() {
   const [cValue, setCValue] = useState('')
   const [cOrderId, setCOrderId] = useState('')
   const [cSource, setCSource] = useState('')
+  const [cAddress, setCAddress] = useState('')
+  const [cAreaSqm, setCAreaSqm] = useState('')
   const [cErr, setCErr] = useState<string | null>(null)
 
   const [commentText, setCommentText] = useState('')
@@ -177,6 +181,8 @@ export default function CrmSalesPage() {
   const [eEmail, setEEmail] = useState('')
   const [eValue, setEValue] = useState('')
   const [eSource, setESource] = useState('')
+  const [eAddress, setEAddress] = useState('')
+  const [eAreaSqm, setEAreaSqm] = useState('')
   const [eErr, setEErr] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
@@ -331,6 +337,13 @@ export default function CrmSalesPage() {
       }
       if (cOrderId.trim()) body.linked_order_id = cOrderId.trim()
       if (cSource) body.source = cSource
+      if (kindTab === 'deal') {
+        if (cAddress.trim()) body.address = cAddress.trim()
+        if (cAreaSqm.trim()) {
+          const n = Number(cAreaSqm.replace(',', '.'))
+          if (!Number.isNaN(n)) body.area_sqm = n
+        }
+      }
       await api.post('/admin/crm/opportunities', body)
     },
     onSuccess: () => {
@@ -345,6 +358,8 @@ export default function CrmSalesPage() {
       setCValue('')
       setCOrderId('')
       setCSource('')
+      setCAddress('')
+      setCAreaSqm('')
       qc.invalidateQueries({ queryKey: ['crm-opportunities'] })
     },
     onError: (e: unknown) => {
@@ -387,6 +402,15 @@ export default function CrmSalesPage() {
       body.phone = ePhone.trim() || null
       body.email = eEmail.trim() || null
       body.source = eSource || null
+      if (detail?.kind === 'deal') {
+        body.address = eAddress.trim() || null
+        if (eAreaSqm.trim()) {
+          const n = Number(eAreaSqm.replace(',', '.'))
+          body.area_sqm = Number.isNaN(n) ? null : n
+        } else {
+          body.area_sqm = null
+        }
+      }
       if (eValue.trim()) {
         const n = Number(eValue.replace(',', '.'))
         if (!Number.isNaN(n)) body.estimated_value_rub = n
@@ -438,6 +462,8 @@ export default function CrmSalesPage() {
     setEEmail(o.email || '')
     setEValue(o.estimated_value_rub != null ? String(o.estimated_value_rub) : '')
     setESource(o.source || '')
+    setEAddress(o.address || '')
+    setEAreaSqm(o.area_sqm != null ? String(o.area_sqm) : '')
   }
 
   const viewTitle = kindTab === 'lead' ? 'Все лиды' : 'Все сделки'
@@ -633,13 +659,9 @@ export default function CrmSalesPage() {
                     sortDir={sortDir}
                     onSort={toggleSort}
                   />
-                  <SortTh
-                    label="Телефон"
-                    column="phone"
-                    activeKey={sortKey}
-                    sortDir={sortDir}
-                    onSort={toggleSort}
-                  />
+                  <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {kindTab === 'lead' ? 'Телефон' : 'Адрес / Площадь'}
+                  </th>
                   <SortTh
                     label="Название"
                     column="title"
@@ -729,8 +751,17 @@ export default function CrmSalesPage() {
                       <td className="max-w-[100px] px-3 py-2.5 font-mono text-xs text-muted-foreground">
                         {o.id.slice(0, 8)}…
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-foreground">
-                        {o.phone || '—'}
+                      <td className="max-w-[180px] px-3 py-2.5">
+                        {o.kind === 'deal' ? (
+                          <div>
+                            <div className="text-xs text-foreground line-clamp-1">{o.address || '—'}</div>
+                            {o.area_sqm != null && (
+                              <div className="text-[11px] text-muted-foreground">{Number(o.area_sqm)} м²</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="whitespace-nowrap tabular-nums text-foreground">{o.phone || '—'}</span>
+                        )}
                       </td>
                       <td className="max-w-[280px] px-3 py-2.5">
                         <div className="font-medium text-foreground line-clamp-2">{o.title}</div>
@@ -797,19 +828,25 @@ export default function CrmSalesPage() {
                       className="rounded-lg border border-border bg-card p-3 text-left text-xs shadow-sm hover:bg-muted/50"
                     >
                       <div className="font-semibold text-foreground line-clamp-2">{o.title}</div>
-                      {o.company_name && (
+                      {o.kind === 'deal' && o.address && (
+                        <p className="mt-1 text-[11px] text-muted-foreground line-clamp-1">{o.address}</p>
+                      )}
+                      {o.kind === 'deal' && o.area_sqm != null && (
+                        <p className="text-[10px] text-muted-foreground">{Number(o.area_sqm)} м²</p>
+                      )}
+                      {o.kind === 'lead' && o.company_name && (
                         <p className="mt-1 text-muted-foreground line-clamp-1">{o.company_name}</p>
                       )}
                       <div className="mt-2 flex flex-wrap gap-1">
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium">
                           {SEGMENT_LABEL[o.segment] || o.segment}
                         </span>
-                        {o.source && (
+                        {o.kind === 'lead' && o.source && (
                           <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700">
                             {SOURCE_LABEL[o.source] || o.source}
                           </span>
                         )}
-                        {o.phone && (
+                        {o.kind === 'lead' && o.phone && (
                           <span className="text-[10px] text-muted-foreground tabular-nums">{o.phone}</span>
                         )}
                       </div>
@@ -855,92 +892,157 @@ export default function CrmSalesPage() {
                   onChange={(e) => setCSegment(e.target.value as 'b2b' | 'b2c')}
                   className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                 >
-                  <option value="b2c">B2C</option>
-                  <option value="b2b">B2B</option>
+                  <option value="b2c">B2C — физическое лицо</option>
+                  <option value="b2b">B2B — компания</option>
                 </select>
               </label>
+
               <label className="text-xs text-muted-foreground">
                 Название *
                 <input
                   value={cTitle}
                   onChange={(e) => setCTitle(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  placeholder="Кратко о возможности"
+                  placeholder={kindTab === 'lead' ? 'Заявка от Ивана, ул. Ленина...' : 'Уборка офиса, Садовая 12...'}
                   required
                 />
               </label>
-              <label className="text-xs text-muted-foreground">
-                Компания (для B2B)
-                <input
-                  value={cCompany}
-                  onChange={(e) => setCCompany(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Контактное лицо
-                <input
-                  value={cContact}
-                  onChange={(e) => setCContact(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Телефон
-                <input
-                  value={cPhone}
-                  onChange={(e) => setCPhone(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Email
-                <input
-                  type="email"
-                  value={cEmail}
-                  onChange={(e) => setCEmail(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Сумма (₽), ориентир
-                <input
-                  value={cValue}
-                  onChange={(e) => setCValue(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Источник
-                <select
-                  value={cSource}
-                  onChange={(e) => setCSource(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Не указан</option>
-                  {SOURCE_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs text-muted-foreground">
-                UUID заказа уборки (если связать)
-                <input
-                  value={cOrderId}
-                  onChange={(e) => setCOrderId(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-mono text-xs"
-                  placeholder="опционально"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Описание
-                <textarea
-                  value={cDesc}
-                  onChange={(e) => setCDesc(e.target.value)}
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-              </label>
+
+              {kindTab === 'lead' ? (
+                <>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Контакт</p>
+                  <label className="text-xs text-muted-foreground">
+                    Имя клиента
+                    <input
+                      value={cContact}
+                      onChange={(e) => setCContact(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="Иван Петров"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Телефон
+                    <input
+                      value={cPhone}
+                      onChange={(e) => setCPhone(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="+7 900 000-00-00"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Email
+                    <input
+                      type="email"
+                      value={cEmail}
+                      onChange={(e) => setCEmail(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  {cSegment === 'b2b' && (
+                    <label className="text-xs text-muted-foreground">
+                      Компания
+                      <input
+                        value={cCompany}
+                        onChange={(e) => setCCompany(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      />
+                    </label>
+                  )}
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Заявка</p>
+                  <label className="text-xs text-muted-foreground">
+                    Источник
+                    <select
+                      value={cSource}
+                      onChange={(e) => setCSource(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Не указан</option>
+                      {SOURCE_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Описание / примечание
+                    <textarea
+                      value={cDesc}
+                      onChange={(e) => setCDesc(e.target.value)}
+                      rows={3}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="Хочет уборку 2к квартиры, срочно..."
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Объект уборки</p>
+                  <label className="text-xs text-muted-foreground">
+                    Адрес *
+                    <input
+                      value={cAddress}
+                      onChange={(e) => setCAddress(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="г. Москва, ул. Садовая, д. 12, кв. 34"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Площадь (м²)
+                    <input
+                      value={cAreaSqm}
+                      onChange={(e) => setCAreaSqm(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="45"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Сумма (₽)
+                    <input
+                      value={cValue}
+                      onChange={(e) => setCValue(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="5000"
+                    />
+                  </label>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Контакт</p>
+                  <label className="text-xs text-muted-foreground">
+                    Имя клиента
+                    <input
+                      value={cContact}
+                      onChange={(e) => setCContact(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      placeholder="Иван Петров"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Телефон
+                    <input
+                      value={cPhone}
+                      onChange={(e) => setCPhone(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  {cSegment === 'b2b' && (
+                    <label className="text-xs text-muted-foreground">
+                      Компания
+                      <input
+                        value={cCompany}
+                        onChange={(e) => setCCompany(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                      />
+                    </label>
+                  )}
+                  <label className="text-xs text-muted-foreground">
+                    Описание / примечание
+                    <textarea
+                      value={cDesc}
+                      onChange={(e) => setCDesc(e.target.value)}
+                      rows={2}
+                      className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                    />
+                  </label>
+                </>
+              )}
+
               {cErr && <p className="text-sm text-red-600">{cErr}</p>}
               <div className="mt-2 flex gap-2">
                 <button
@@ -1102,19 +1204,42 @@ export default function CrmSalesPage() {
                     className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
                   />
                 </label>
-                <label className="text-xs text-muted-foreground">
-                  Источник
-                  <select
-                    value={eSource}
-                    onChange={(e) => setESource(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">Не указан</option>
-                    {SOURCE_OPTIONS.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                </label>
+                {detail?.kind === 'lead' ? (
+                  <label className="text-xs text-muted-foreground">
+                    Источник
+                    <select
+                      value={eSource}
+                      onChange={(e) => setESource(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Не указан</option>
+                      {SOURCE_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <>
+                    <label className="text-xs text-muted-foreground">
+                      Адрес
+                      <input
+                        value={eAddress}
+                        onChange={(e) => setEAddress(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                        placeholder="г. Москва, ул. Садовая, д. 12"
+                      />
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Площадь (м²)
+                      <input
+                        value={eAreaSqm}
+                        onChange={(e) => setEAreaSqm(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                        placeholder="45"
+                      />
+                    </label>
+                  </>
+                )}
                 <label className="text-xs text-muted-foreground">
                   Сумма (₽)
                   <input
@@ -1160,20 +1285,28 @@ export default function CrmSalesPage() {
                     {[detail.contact_name, detail.phone, detail.email].filter(Boolean).join(' · ')}
                   </p>
                 )}
+                {detail.kind === 'deal' && detail.address && (
+                  <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                    <p className="font-medium text-foreground">{detail.address}</p>
+                    {detail.area_sqm != null && (
+                      <p className="text-xs text-muted-foreground">{Number(detail.area_sqm).toLocaleString('ru-RU')} м²</p>
+                    )}
+                  </div>
+                )}
+                {detail.estimated_value_rub != null && Number(detail.estimated_value_rub) > 0 && (
+                  <p className="mt-2 text-sm font-semibold tabular-nums text-primary">
+                    {Number(detail.estimated_value_rub).toLocaleString('ru-RU')} ₽
+                  </p>
+                )}
                 {(detail.source || detail.assigned_to_phone) && (
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    {detail.source && (
+                    {detail.kind === 'lead' && detail.source && (
                       <span>Источник: <span className="font-medium text-foreground">{SOURCE_LABEL[detail.source] || detail.source}</span></span>
                     )}
                     {detail.assigned_to_phone && (
                       <span>Ответственный: <span className="font-medium text-foreground">{detail.assigned_to_phone}</span></span>
                     )}
                   </div>
-                )}
-                {detail.estimated_value_rub != null && Number(detail.estimated_value_rub) > 0 && (
-                  <p className="mt-1 text-sm font-medium tabular-nums">
-                    {Number(detail.estimated_value_rub).toLocaleString('ru-RU')} ₽
-                  </p>
                 )}
                 {detail.description && <p className="mt-3 text-sm whitespace-pre-wrap">{detail.description}</p>}
 

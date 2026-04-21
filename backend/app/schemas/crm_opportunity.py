@@ -23,6 +23,7 @@ class CrmOpportunityCreate(BaseModel):
     segment: CrmSegment
     title: str = Field(..., min_length=1, max_length=300)
     description: Optional[str] = None
+    # Контактные поля (лид и сделка)
     company_name: Optional[str] = Field(None, max_length=200)
     contact_name: Optional[str] = Field(None, max_length=120)
     phone: Optional[str] = Field(None, max_length=30)
@@ -36,6 +37,9 @@ class CrmOpportunityCreate(BaseModel):
         max_length=32,
         description="Если не задан — начальный этап для лида/сделки",
     )
+    # Поля сделки
+    address: Optional[str] = Field(None, max_length=500)
+    area_sqm: Optional[Decimal] = None
 
 
 class CrmOpportunityUpdate(BaseModel):
@@ -51,6 +55,8 @@ class CrmOpportunityUpdate(BaseModel):
     source: Optional[str] = Field(None, max_length=50)
     assigned_to_id: Optional[UUID] = None
     segment: Optional[CrmSegment] = None
+    address: Optional[str] = Field(None, max_length=500)
+    area_sqm: Optional[Decimal] = None
 
 
 class CrmOpportunityResponse(BaseModel):
@@ -67,6 +73,8 @@ class CrmOpportunityResponse(BaseModel):
     estimated_value_rub: Optional[Decimal] = None
     linked_order_id: Optional[UUID] = None
     source: Optional[str] = None
+    address: Optional[str] = None
+    area_sqm: Optional[Decimal] = None
     created_by_id: Optional[UUID] = None
     assigned_to_id: Optional[UUID] = None
     assigned_to_phone: Optional[str] = None

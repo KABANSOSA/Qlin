@@ -91,6 +91,8 @@ async def create_opportunity(
         linked_order_id=body.linked_order_id,
         source=body.source,
         assigned_to_id=body.assigned_to_id,
+        address=body.address.strip() if body.address else None,
+        area_sqm=body.area_sqm,
         created_by_id=current_user.id,
     )
     db.add(row)
@@ -123,7 +125,7 @@ async def update_opportunity(
         if not db.query(User).filter(User.id == data["assigned_to_id"]).first():
             raise HTTPException(status_code=400, detail="Пользователь (ответственный) не найден")
 
-    text_optional = ("description", "company_name", "contact_name", "phone", "email", "source")
+    text_optional = ("description", "company_name", "contact_name", "phone", "email", "source", "address")
     for k, v in data.items():
         if v is None:
             setattr(row, k, None)
