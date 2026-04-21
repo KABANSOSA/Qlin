@@ -11,8 +11,11 @@ import {
   Filter,
   LayoutGrid,
   List,
+  Pencil,
+  Plus,
   Search,
   Settings2,
+  Trash2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { CrmShell } from '@/components/crm-shell'
@@ -156,6 +159,18 @@ export default function CrmSalesPage() {
 
   const [commentText, setCommentText] = useState('')
   const [detailStage, setDetailStage] = useState('')
+
+  const [editMode, setEditMode] = useState(false)
+  const [eTitle, setETitle] = useState('')
+  const [eSegment, setESegment] = useState<'b2b' | 'b2c'>('b2c')
+  const [eDesc, setEDesc] = useState('')
+  const [eCompany, setECompany] = useState('')
+  const [eContact, setEContact] = useState('')
+  const [ePhone, setEPhone] = useState('')
+  const [eEmail, setEEmail] = useState('')
+  const [eValue, setEValue] = useState('')
+  const [eErr, setEErr] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const stages = kindTab === 'lead' ? LEAD_STAGE_ORDER : DEAL_STAGE_ORDER
 
@@ -348,6 +363,50 @@ export default function CrmSalesPage() {
     },
   })
 
+  const editMut = useMutation({
+    mutationFn: async () => {
+      if (!detailId) return
+      const body: Record<string, unknown> = {
+        segment: eSegment,
+        title: eTitle.trim(),
+        stage: detailStage,
+      }
+      body.description = eDesc.trim() || null
+      body.company_name = eCompany.trim() || null
+      body.contact_name = eContact.trim() || null
+      body.phone = ePhone.trim() || null
+      body.email = eEmail.trim() || null
+      if (eValue.trim()) {
+        const n = Number(eValue.replace(',', '.'))
+        if (!Number.isNaN(n)) body.estimated_value_rub = n
+      } else {
+        body.estimated_value_rub = null
+      }
+      await api.patch(`/admin/crm/opportunities/${detailId}`, body)
+    },
+    onSuccess: () => {
+      setEditMode(false)
+      setEErr(null)
+      qc.invalidateQueries({ queryKey: ['crm-opportunities'] })
+    },
+    onError: (e: unknown) => {
+      const ax = e as { response?: { data?: { detail?: string } } }
+      setEErr(ax.response?.data?.detail || 'Ошибка сохранения')
+    },
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: async () => {
+      if (!detailId) return
+      await api.delete(`/admin/crm/opportunities/${detailId}`)
+    },
+    onSuccess: () => {
+      setDetailId(null)
+      setDeleteConfirm(false)
+      qc.invalidateQueries({ queryKey: ['crm-opportunities'] })
+    },
+  })
+
   if (loading || error || !user) {
     return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
@@ -356,6 +415,17 @@ export default function CrmSalesPage() {
     setDetailId(o.id)
     setDetailStage(o.stage)
     setCommentText('')
+    setEditMode(false)
+    setDeleteConfirm(false)
+    setEErr(null)
+    setETitle(o.title)
+    setESegment(o.segment as 'b2b' | 'b2c')
+    setEDesc(o.description || '')
+    setECompany(o.company_name || '')
+    setEContact(o.contact_name || '')
+    setEPhone(o.phone || '')
+    setEEmail(o.email || '')
+    setEValue(o.estimated_value_rub != null ? String(o.estimated_value_rub) : '')
   }
 
   const viewTitle = kindTab === 'lead' ? 'Все лиды' : 'Все сделки'
@@ -436,6 +506,17 @@ export default function CrmSalesPage() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setCreateOpen(true)
+                setCErr(null)
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              {kindTab === 'lead' ? 'Добавить лид' : 'Добавить сделку'}
+            </button>
             <div className="inline-flex rounded-md border border-border p-0.5">
               <button
                 type="button"
@@ -589,10 +670,27 @@ export default function CrmSalesPage() {
               <tbody>
                 {sortedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      {rows.length === 0
-                        ? 'Пока нет записей — нажмите «+ Создать» в шапке.'
-                        : 'Ничего не найдено по поиску.'}
+                    <td colSpan={9} className="px-4 py-12 text-center">
+                      {rows.length === 0 ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <p className="text-sm text-muted-foreground">
+                            Пока нет {kindTab === 'lead' ? 'лидов' : 'сделок'}.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreateOpen(true)
+                              setCErr(null)
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                          >
+                            <Plus className="h-4 w-4" />
+                            {kindTab === 'lead' ? 'Добавить первый лид' : 'Добавить первую сделку'}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Ничего не найдено по поиску.</p>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -824,80 +922,247 @@ export default function CrmSalesPage() {
                 <p className="text-xs font-medium uppercase text-muted-foreground">
                   {KIND_LABEL[detail.kind]} · {SEGMENT_LABEL[detail.segment]}
                 </p>
-                <h2 className="mt-1 text-lg font-semibold">{detail.title}</h2>
+                {!editMode && <h2 className="mt-1 text-lg font-semibold">{detail.title}</h2>}
               </div>
-              <button
-                type="button"
-                onClick={() => setDetailId(null)}
-                className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
-              >
-                ✕
-              </button>
-            </div>
-            {detail.company_name && (
-              <p className="mt-2 text-sm text-muted-foreground">Компания: {detail.company_name}</p>
-            )}
-            {(detail.contact_name || detail.phone || detail.email) && (
-              <p className="mt-1 text-sm">
-                {[detail.contact_name, detail.phone, detail.email].filter(Boolean).join(' · ')}
-              </p>
-            )}
-            {detail.description && <p className="mt-3 text-sm whitespace-pre-wrap">{detail.description}</p>}
-
-            <div className="mt-4">
-              <label className="text-xs font-medium text-muted-foreground">Этап воронки</label>
-              <select
-                value={detailStage}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setDetailStage(v)
-                  patchStageMut.mutate({ id: detail.id, stage: v })
-                }}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              >
-                {detailStages.map((s) => (
-                  <option key={s} value={s}>
-                    {STAGE_LABEL[s] || s}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mt-6 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold">Комментарии</h3>
-              <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-                {commentsQuery.isLoading ? (
-                  <p className="text-xs text-muted-foreground">Загрузка…</p>
-                ) : !(commentsQuery.data && commentsQuery.data.length) ? (
-                  <p className="text-xs text-muted-foreground">Пока нет комментариев</p>
-                ) : (
-                  commentsQuery.data!.map((c) => (
-                    <div key={c.id} className="rounded-lg bg-muted/50 px-3 py-2 text-xs">
-                      <div className="flex justify-between gap-2 text-[10px] text-muted-foreground">
-                        <span>{c.author_phone || '—'}</span>
-                        <span>{format(new Date(c.created_at), 'd MMM HH:mm', { locale: ru })}</span>
-                      </div>
-                      <p className="mt-1 whitespace-pre-wrap text-foreground">{c.body}</p>
-                    </div>
-                  ))
+              <div className="flex shrink-0 items-center gap-1">
+                {!editMode && (
+                  <button
+                    type="button"
+                    title="Редактировать"
+                    onClick={() => {
+                      setETitle(detail.title)
+                      setESegment(detail.segment as 'b2b' | 'b2c')
+                      setEDesc(detail.description || '')
+                      setECompany(detail.company_name || '')
+                      setEContact(detail.contact_name || '')
+                      setEPhone(detail.phone || '')
+                      setEEmail(detail.email || '')
+                      setEValue(detail.estimated_value_rub != null ? String(detail.estimated_value_rub) : '')
+                      setEErr(null)
+                      setEditMode(true)
+                    }}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
                 )}
+                <button
+                  type="button"
+                  title="Удалить"
+                  onClick={() => setDeleteConfirm(true)}
+                  className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailId(null)
+                    setEditMode(false)
+                    setDeleteConfirm(false)
+                  }}
+                  className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
+                >
+                  ✕
+                </button>
               </div>
-              <textarea
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                rows={3}
-                placeholder="Новый комментарий…"
-                className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                disabled={!commentText.trim() || addCommentMut.isPending}
-                onClick={() => addCommentMut.mutate()}
-                className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-              >
-                {addCommentMut.isPending ? 'Отправка…' : 'Добавить комментарий'}
-              </button>
             </div>
+
+            {deleteConfirm && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-800">Удалить этот лид безвозвратно?</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={deleteMut.isPending}
+                    onClick={() => deleteMut.mutate()}
+                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {deleteMut.isPending ? 'Удаление…' : 'Да, удалить'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(false)}
+                    className="rounded-md border border-border px-3 py-1.5 text-xs"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {editMode ? (
+              <form
+                className="mt-4 flex flex-col gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!eTitle.trim()) { setEErr('Укажите название'); return }
+                  editMut.mutate()
+                }}
+              >
+                <label className="text-xs text-muted-foreground">
+                  Сегмент *
+                  <select
+                    value={eSegment}
+                    onChange={(e) => setESegment(e.target.value as 'b2b' | 'b2c')}
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="b2c">B2C</option>
+                    <option value="b2b">B2B</option>
+                  </select>
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Название *
+                  <input
+                    value={eTitle}
+                    onChange={(e) => setETitle(e.target.value)}
+                    required
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Компания (для B2B)
+                  <input
+                    value={eCompany}
+                    onChange={(e) => setECompany(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Контактное лицо
+                  <input
+                    value={eContact}
+                    onChange={(e) => setEContact(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Телефон
+                  <input
+                    value={ePhone}
+                    onChange={(e) => setEPhone(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Email
+                  <input
+                    type="email"
+                    value={eEmail}
+                    onChange={(e) => setEEmail(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Сумма (₽)
+                  <input
+                    value={eValue}
+                    onChange={(e) => setEValue(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Описание
+                  <textarea
+                    value={eDesc}
+                    onChange={(e) => setEDesc(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+                {eErr && <p className="text-sm text-red-600">{eErr}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={editMut.isPending}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {editMut.isPending ? 'Сохранение…' : 'Сохранить'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(false)}
+                    className="rounded-lg border border-border px-4 py-2 text-sm"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                {detail.company_name && (
+                  <p className="mt-2 text-sm text-muted-foreground">Компания: {detail.company_name}</p>
+                )}
+                {(detail.contact_name || detail.phone || detail.email) && (
+                  <p className="mt-1 text-sm">
+                    {[detail.contact_name, detail.phone, detail.email].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                {detail.estimated_value_rub != null && Number(detail.estimated_value_rub) > 0 && (
+                  <p className="mt-1 text-sm font-medium tabular-nums">
+                    {Number(detail.estimated_value_rub).toLocaleString('ru-RU')} ₽
+                  </p>
+                )}
+                {detail.description && <p className="mt-3 text-sm whitespace-pre-wrap">{detail.description}</p>}
+
+                <div className="mt-4">
+                  <label className="text-xs font-medium text-muted-foreground">Этап воронки</label>
+                  <select
+                    value={detailStage}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setDetailStage(v)
+                      patchStageMut.mutate({ id: detail.id, stage: v })
+                    }}
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    {detailStages.map((s) => (
+                      <option key={s} value={s}>
+                        {STAGE_LABEL[s] || s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {!editMode && (
+              <div className="mt-6 border-t border-border pt-4">
+                <h3 className="text-sm font-semibold">Комментарии</h3>
+                <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                  {commentsQuery.isLoading ? (
+                    <p className="text-xs text-muted-foreground">Загрузка…</p>
+                  ) : !(commentsQuery.data && commentsQuery.data.length) ? (
+                    <p className="text-xs text-muted-foreground">Пока нет комментариев</p>
+                  ) : (
+                    commentsQuery.data!.map((c) => (
+                      <div key={c.id} className="rounded-lg bg-muted/50 px-3 py-2 text-xs">
+                        <div className="flex justify-between gap-2 text-[10px] text-muted-foreground">
+                          <span>{c.author_phone || '—'}</span>
+                          <span>{format(new Date(c.created_at), 'd MMM HH:mm', { locale: ru })}</span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-foreground">{c.body}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  rows={3}
+                  placeholder="Новый комментарий…"
+                  className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={!commentText.trim() || addCommentMut.isPending}
+                  onClick={() => addCommentMut.mutate()}
+                  className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  {addCommentMut.isPending ? 'Отправка…' : 'Добавить комментарий'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

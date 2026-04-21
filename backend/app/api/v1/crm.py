@@ -144,6 +144,19 @@ async def list_comments(
     return out
 
 
+@router.delete("/opportunities/{opportunity_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_opportunity(
+    opportunity_id: UUID,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    row = db.query(CrmOpportunity).filter(CrmOpportunity.id == opportunity_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найдено")
+    db.delete(row)
+    db.commit()
+
+
 @router.post(
     "/opportunities/{opportunity_id}/comments",
     response_model=CrmCommentResponse,
