@@ -19,6 +19,7 @@ from app.models.cleaner import Cleaner
 from app.schemas.order import (
     OrderResponse,
     OrderAdminResponse,
+    OrderCostsUpdate,
     AssignOrderBody,
     AdminSetOrderStatusBody,
 )
@@ -30,31 +31,63 @@ from app.services.order_service import OrderService
 router = APIRouter()
 
 
+def _compute_margin(order: Order) -> tuple:
+    """Return (margin_rub, margin_pct) from order cost fields."""
+    total = float(order.total_price or 0)
+    payout = float(order.cleaner_payout or 0)
+    supply = float(order.supply_cost or 0)
+    other = float(order.other_cost or 0)
+    costs = payout + supply + other
+    margin_rub = round(total - costs, 2)
+    margin_pct = round((margin_rub / total) * 100, 1) if total else 0.0
+    return Decimal(str(margin_rub)), margin_pct
+
+
 @router.get("/orders", response_model=List[OrderAdminResponse])
 async def get_all_orders(
     status: str = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Get all orders (admin only), с телефоном и email клиента для CRM."""
+    """Get all orders (admin only), с контактами клиента и именем/телефоном клинера для CRM."""
+    from sqlalchemy.orm import aliased
+
+    CustomerUser = aliased(User)
+    CleanerUser = aliased(User)
+
     query = (
-        db.query(Order, User.phone, User.email)
-        .join(User, Order.customer_id == User.id)
+        db.query(
+            Order,
+            CustomerUser.phone,
+            CustomerUser.email,
+            CleanerUser.phone,
+            CleanerUser.first_name,
+        )
+        .join(CustomerUser, Order.customer_id == CustomerUser.id)
+        .outerjoin(CleanerUser, Order.cleaner_id == CleanerUser.id)
     )
     if status:
         query = query.filter(Order.status == status)
 
     rows = query.order_by(Order.created_at.desc()).limit(limit).offset(offset).all()
     out: List[OrderAdminResponse] = []
-    for order, phone, email in rows:
+    for order, cust_phone, cust_email, cl_phone, cl_name in rows:
         base = OrderResponse.model_validate(order)
+        margin_rub, margin_pct = _compute_margin(order)
         out.append(
             OrderAdminResponse(
                 **base.model_dump(),
-                customer_phone=phone,
-                customer_email=email,
+                customer_phone=cust_phone,
+                customer_email=cust_email,
+                cleaner_phone=cl_phone,
+                cleaner_name=cl_name,
+                cleaner_payout=order.cleaner_payout,
+                supply_cost=order.supply_cost or 0,
+                other_cost=order.other_cost or 0,
+                margin_rub=margin_rub,
+                margin_pct=margin_pct,
             )
         )
     return out
@@ -175,28 +208,201 @@ async def admin_patch_order_status(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.patch("/orders/{order_id}/costs", response_model=OrderAdminResponse)
+async def admin_update_order_costs(
+    order_id: UUID,
+    body: OrderCostsUpdate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Ручная корректировка себестоимости заказа (выплата клинеру, расходники, прочее)."""
+    from sqlalchemy.orm import aliased
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+
+    if body.cleaner_payout is not None:
+        order.cleaner_payout = body.cleaner_payout
+    if body.supply_cost is not None:
+        order.supply_cost = body.supply_cost
+    if body.other_cost is not None:
+        order.other_cost = body.other_cost
+
+    db.commit()
+    db.refresh(order)
+
+    CustomerUser = aliased(User)
+    CleanerUser = aliased(User)
+    row = (
+        db.query(CustomerUser.phone, CustomerUser.email, CleanerUser.phone, CleanerUser.first_name)
+        .select_from(Order)
+        .join(CustomerUser, Order.customer_id == CustomerUser.id)
+        .outerjoin(CleanerUser, Order.cleaner_id == CleanerUser.id)
+        .filter(Order.id == order_id)
+        .first()
+    )
+    cust_phone, cust_email, cl_phone, cl_name = row if row else (None, None, None, None)
+    base = OrderResponse.model_validate(order)
+    margin_rub, margin_pct = _compute_margin(order)
+    return OrderAdminResponse(
+        **base.model_dump(),
+        customer_phone=cust_phone,
+        customer_email=cust_email,
+        cleaner_phone=cl_phone,
+        cleaner_name=cl_name,
+        cleaner_payout=order.cleaner_payout,
+        supply_cost=order.supply_cost or 0,
+        other_cost=order.other_cost or 0,
+        margin_rub=margin_rub,
+        margin_pct=margin_pct,
+    )
+
+
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_admin_stats(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Сводка для CRM: клиенты, заказы по статусам, выручка (оплаченные заказы)."""
+    """Сводка для CRM: клиенты, заказы по статусам, выручка, период-метрики."""
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
     customers = db.query(func.count(User.id)).filter(User.role == "customer").scalar() or 0
+    cleaners_count = db.query(func.count(User.id)).filter(User.role == "cleaner").scalar() or 0
     orders_total = db.query(func.count(Order.id)).scalar() or 0
+
     status_rows = db.query(Order.status, func.count(Order.id)).group_by(Order.status).all()
     by_status = {row[0]: row[1] for row in status_rows}
+
     paid_sum = (
         db.query(func.coalesce(func.sum(Order.total_price), 0))
         .filter(Order.payment_status == "paid")
         .scalar()
+    ) or Decimal("0")
+
+    orders_today = (
+        db.query(func.count(Order.id))
+        .filter(Order.created_at >= today_start)
+        .scalar()
+    ) or 0
+
+    orders_this_week = (
+        db.query(func.count(Order.id))
+        .filter(Order.created_at >= week_start)
+        .scalar()
+    ) or 0
+
+    orders_this_month = (
+        db.query(func.count(Order.id))
+        .filter(Order.created_at >= month_start)
+        .scalar()
+    ) or 0
+
+    revenue_this_week = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(Order.payment_status == "paid", Order.created_at >= week_start)
+        .scalar()
+    ) or Decimal("0")
+
+    revenue_this_month = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(Order.payment_status == "paid", Order.created_at >= month_start)
+        .scalar()
+    ) or Decimal("0")
+
+    avg_order_value = (
+        db.query(func.avg(Order.total_price))
+        .filter(Order.status.notin_(["cancelled"]))
+        .scalar()
     )
-    if paid_sum is None:
-        paid_sum = Decimal("0")
+
+    # ---- Margin metrics ----
+    total_payout = (
+        db.query(func.coalesce(func.sum(Order.cleaner_payout), 0))
+        .filter(Order.status.notin_(["cancelled"]))
+        .scalar()
+    ) or Decimal("0")
+
+    total_supply = (
+        db.query(func.coalesce(func.sum(Order.supply_cost), 0))
+        .filter(Order.status.notin_(["cancelled"]))
+        .scalar()
+    ) or Decimal("0")
+
+    total_other = (
+        db.query(func.coalesce(func.sum(Order.other_cost), 0))
+        .filter(Order.status.notin_(["cancelled"]))
+        .scalar()
+    ) or Decimal("0")
+
+    total_revenue_all = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(Order.status.notin_(["cancelled"]))
+        .scalar()
+    ) or Decimal("0")
+
+    total_costs = float(total_payout) + float(total_supply) + float(total_other)
+    total_margin_rub = float(total_revenue_all) - total_costs
+    total_margin_pct = (
+        round((total_margin_rub / float(total_revenue_all)) * 100, 1)
+        if float(total_revenue_all) > 0
+        else 0.0
+    )
+
+    margin_this_month_rev = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
+        .scalar()
+    ) or Decimal("0")
+
+    margin_this_month_payout = (
+        db.query(func.coalesce(func.sum(Order.cleaner_payout), 0))
+        .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
+        .scalar()
+    ) or Decimal("0")
+
+    margin_this_month_supply = (
+        db.query(func.coalesce(func.sum(Order.supply_cost), 0))
+        .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
+        .scalar()
+    ) or Decimal("0")
+
+    margin_this_month_other = (
+        db.query(func.coalesce(func.sum(Order.other_cost), 0))
+        .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
+        .scalar()
+    ) or Decimal("0")
+
+    month_costs = float(margin_this_month_payout) + float(margin_this_month_supply) + float(margin_this_month_other)
+    month_margin_rub = float(margin_this_month_rev) - month_costs
+    month_margin_pct = (
+        round((month_margin_rub / float(margin_this_month_rev)) * 100, 1)
+        if float(margin_this_month_rev) > 0
+        else 0.0
+    )
+
     return {
         "customers": int(customers),
+        "cleaners": int(cleaners_count),
         "orders_total": int(orders_total),
         "by_status": by_status,
         "revenue_paid_rub": float(paid_sum),
+        "orders_today": int(orders_today),
+        "orders_this_week": int(orders_this_week),
+        "orders_this_month": int(orders_this_month),
+        "revenue_this_week_rub": float(revenue_this_week),
+        "revenue_this_month_rub": float(revenue_this_month),
+        "avg_order_value_rub": round(float(avg_order_value), 2) if avg_order_value else 0.0,
+        "total_margin_rub": round(total_margin_rub, 2),
+        "total_margin_pct": total_margin_pct,
+        "month_margin_rub": round(month_margin_rub, 2),
+        "month_margin_pct": month_margin_pct,
+        "total_payout_rub": float(total_payout),
     }
 
 
