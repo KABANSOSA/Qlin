@@ -23,9 +23,11 @@ class CrmOpportunity(Base):
     phone = Column(String(30), nullable=True)
     email = Column(String(255), nullable=True)
     estimated_value_rub = Column(Numeric(12, 2), nullable=True)
+    source = Column(String(50), nullable=True)  # website | phone_call | referral | advertising | social | other
 
     linked_order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -36,8 +38,15 @@ class CrmOpportunity(Base):
         order_by="CrmOpportunityComment.created_at",
         cascade="all, delete-orphan",
     )
+    tasks = relationship(
+        "CrmTask",
+        back_populates="opportunity",
+        order_by="CrmTask.deadline",
+        cascade="all, delete-orphan",
+    )
     linked_order = relationship("Order", foreign_keys=[linked_order_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
 
 
 class CrmOpportunityComment(Base):
@@ -56,3 +65,28 @@ class CrmOpportunityComment(Base):
 
     opportunity = relationship("CrmOpportunity", back_populates="comments")
     author = relationship("User", foreign_keys=[author_id])
+
+
+class CrmTask(Base):
+    __tablename__ = "crm_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String(300), nullable=False)
+    status = Column(String(32), nullable=False, default="todo", index=True)  # todo | in_progress | done | cancelled
+    deadline = Column(DateTime(timezone=True), nullable=True)
+
+    opportunity_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("crm_opportunities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    opportunity = relationship("CrmOpportunity", back_populates="tasks")
+    creator = relationship("User", foreign_keys=[creator_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])

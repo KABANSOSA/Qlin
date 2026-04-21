@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, Grid3X3, LogOut, RefreshCw, Search } from 'lucide-react'
+import { LogOut, RefreshCw, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const nav = [
@@ -10,6 +10,7 @@ const nav = [
   { href: '/orders', label: 'Заявки' },
   { href: '/pipeline', label: 'Воронка' },
   { href: '/sales', label: 'Лиды' },
+  { href: '/tasks', label: 'Задачи' },
   { href: '/cleaners', label: 'Клинеры' },
   { href: '/contacts', label: 'Контакты' },
   { href: '/payments', label: 'Оплаты' },
@@ -99,9 +100,9 @@ export function CrmShell({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <div className="relative hidden min-w-[200px] max-w-xs flex-1 md:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              {headerSearch ? (
+            {headerSearch && (
+              <div className="relative hidden min-w-[200px] max-w-xs flex-1 md:block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="search"
                   value={headerSearch.value}
@@ -110,16 +111,8 @@ export function CrmShell({
                   className="h-9 w-full rounded-md border border-border bg-[#f5f6f8] pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand focus:outline-none focus:ring-1 focus:ring-[#E31E24]/25"
                   aria-label="Поиск по CRM"
                 />
-              ) : (
-                <input
-                  type="search"
-                  readOnly
-                  placeholder="Поиск по CRM"
-                  className="h-9 w-full cursor-default rounded-md border border-border bg-[#f5f6f8] pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand focus:outline-none focus:ring-1 focus:ring-[#E31E24]/25"
-                  aria-label="Поиск (скоро)"
-                />
-              )}
-            </div>
+              </div>
+            )}
 
             {createAction && (
               <button
@@ -132,20 +125,6 @@ export function CrmShell({
             )}
 
             <div className="flex items-center gap-1 border-l border-border pl-2 sm:pl-3">
-              <button
-                type="button"
-                className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Уведомления"
-              >
-                <Bell className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="hidden rounded-md p-2 text-muted-foreground hover:bg-muted sm:block"
-                aria-label="Меню"
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </button>
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8eaed] text-xs font-semibold text-foreground"
                 title={mePhone || 'Профиль'}

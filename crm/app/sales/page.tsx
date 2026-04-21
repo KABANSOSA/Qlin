@@ -26,6 +26,9 @@ import {
   KIND_LABEL,
   LEAD_STAGE_ORDER,
   SEGMENT_LABEL,
+  SOURCE_LABEL,
+  SOURCE_OPTIONS,
+  STAGE_BADGE,
   STAGE_LABEL,
 } from '@/lib/crm-sales-config'
 import { cn } from '@/lib/utils'
@@ -43,6 +46,9 @@ interface Opportunity {
   email: string | null
   estimated_value_rub: string | null
   linked_order_id: string | null
+  source: string | null
+  assigned_to_id: string | null
+  assigned_to_phone: string | null
   created_at: string
   updated_at: string
 }
@@ -155,6 +161,7 @@ export default function CrmSalesPage() {
   const [cEmail, setCEmail] = useState('')
   const [cValue, setCValue] = useState('')
   const [cOrderId, setCOrderId] = useState('')
+  const [cSource, setCSource] = useState('')
   const [cErr, setCErr] = useState<string | null>(null)
 
   const [commentText, setCommentText] = useState('')
@@ -169,6 +176,7 @@ export default function CrmSalesPage() {
   const [ePhone, setEPhone] = useState('')
   const [eEmail, setEEmail] = useState('')
   const [eValue, setEValue] = useState('')
+  const [eSource, setESource] = useState('')
   const [eErr, setEErr] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
@@ -322,6 +330,7 @@ export default function CrmSalesPage() {
         if (!Number.isNaN(n)) body.estimated_value_rub = n
       }
       if (cOrderId.trim()) body.linked_order_id = cOrderId.trim()
+      if (cSource) body.source = cSource
       await api.post('/admin/crm/opportunities', body)
     },
     onSuccess: () => {
@@ -335,6 +344,7 @@ export default function CrmSalesPage() {
       setCEmail('')
       setCValue('')
       setCOrderId('')
+      setCSource('')
       qc.invalidateQueries({ queryKey: ['crm-opportunities'] })
     },
     onError: (e: unknown) => {
@@ -376,6 +386,7 @@ export default function CrmSalesPage() {
       body.contact_name = eContact.trim() || null
       body.phone = ePhone.trim() || null
       body.email = eEmail.trim() || null
+      body.source = eSource || null
       if (eValue.trim()) {
         const n = Number(eValue.replace(',', '.'))
         if (!Number.isNaN(n)) body.estimated_value_rub = n
@@ -426,6 +437,7 @@ export default function CrmSalesPage() {
     setEPhone(o.phone || '')
     setEEmail(o.email || '')
     setEValue(o.estimated_value_rub != null ? String(o.estimated_value_rub) : '')
+    setESource(o.source || '')
   }
 
   const viewTitle = kindTab === 'lead' ? 'Все лиды' : 'Все сделки'
@@ -649,6 +661,12 @@ export default function CrmSalesPage() {
                     sortDir={sortDir}
                     onSort={toggleSort}
                   />
+                  <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Источник
+                  </th>
+                  <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Ответственный
+                  </th>
                   <SortTh
                     label="Сумма"
                     column="value"
@@ -670,7 +688,7 @@ export default function CrmSalesPage() {
               <tbody>
                 {sortedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center">
+                    <td colSpan={11} className="px-4 py-12 text-center">
                       {rows.length === 0 ? (
                         <div className="flex flex-col items-center gap-3">
                           <p className="text-sm text-muted-foreground">
@@ -725,7 +743,17 @@ export default function CrmSalesPage() {
                           {SEGMENT_LABEL[o.segment] || o.segment}
                         </span>
                       </td>
-                      <td className="max-w-[140px] px-3 py-2.5 text-xs">{STAGE_LABEL[o.stage] || o.stage}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-medium', STAGE_BADGE[o.stage] || 'bg-slate-100 text-slate-700')}>
+                          {STAGE_LABEL[o.stage] || o.stage}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
+                        {o.source ? SOURCE_LABEL[o.source] || o.source : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
+                        {o.assigned_to_phone || '—'}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
                         {o.estimated_value_rub != null && Number(o.estimated_value_rub) > 0
                           ? `${Number(o.estimated_value_rub).toLocaleString('ru-RU')} ₽`
@@ -776,10 +804,18 @@ export default function CrmSalesPage() {
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium">
                           {SEGMENT_LABEL[o.segment] || o.segment}
                         </span>
+                        {o.source && (
+                          <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700">
+                            {SOURCE_LABEL[o.source] || o.source}
+                          </span>
+                        )}
                         {o.phone && (
                           <span className="text-[10px] text-muted-foreground tabular-nums">{o.phone}</span>
                         )}
                       </div>
+                      {o.assigned_to_phone && (
+                        <p className="mt-1 text-[10px] text-muted-foreground">→ {o.assigned_to_phone}</p>
+                      )}
                       {o.estimated_value_rub != null && Number(o.estimated_value_rub) > 0 && (
                         <p className="mt-1 text-[11px] font-medium tabular-nums">
                           {Number(o.estimated_value_rub).toLocaleString('ru-RU')} ₽
@@ -873,6 +909,19 @@ export default function CrmSalesPage() {
                   onChange={(e) => setCValue(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
                 />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Источник
+                <select
+                  value={cSource}
+                  onChange={(e) => setCSource(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Не указан</option>
+                  {SOURCE_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
               </label>
               <label className="text-xs text-muted-foreground">
                 UUID заказа уборки (если связать)
@@ -1054,6 +1103,19 @@ export default function CrmSalesPage() {
                   />
                 </label>
                 <label className="text-xs text-muted-foreground">
+                  Источник
+                  <select
+                    value={eSource}
+                    onChange={(e) => setESource(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Не указан</option>
+                    {SOURCE_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-muted-foreground">
                   Сумма (₽)
                   <input
                     value={eValue}
@@ -1097,6 +1159,16 @@ export default function CrmSalesPage() {
                   <p className="mt-1 text-sm">
                     {[detail.contact_name, detail.phone, detail.email].filter(Boolean).join(' · ')}
                   </p>
+                )}
+                {(detail.source || detail.assigned_to_phone) && (
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    {detail.source && (
+                      <span>Источник: <span className="font-medium text-foreground">{SOURCE_LABEL[detail.source] || detail.source}</span></span>
+                    )}
+                    {detail.assigned_to_phone && (
+                      <span>Ответственный: <span className="font-medium text-foreground">{detail.assigned_to_phone}</span></span>
+                    )}
+                  </div>
                 )}
                 {detail.estimated_value_rub != null && Number(detail.estimated_value_rub) > 0 && (
                   <p className="mt-1 text-sm font-medium tabular-nums">
