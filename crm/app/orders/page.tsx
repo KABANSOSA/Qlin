@@ -114,16 +114,15 @@ export default function CrmOrdersPage() {
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
-  if (loading || error || !user) {
-    return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
-  }
-
-  // counts per status for tab badges
-  const allOrders = orders
-  const counts = STATUS_TABS.reduce<Record<string, number>>((acc, t) => {
-    acc[t.value] = t.value === '' ? allOrders.length : allOrders.filter(o => o.status === t.value).length
-    return acc
-  }, {})
+  const counts = useMemo(
+    () =>
+      STATUS_TABS.reduce<Record<string, number>>((acc, t) => {
+        acc[t.value] =
+          t.value === '' ? orders.length : orders.filter(o => o.status === t.value).length
+        return acc
+      }, {}),
+    [orders],
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -133,6 +132,10 @@ export default function CrmOrdersPage() {
         .filter(Boolean).join(' ').toLowerCase().includes(q)
     )
   }, [orders, search])
+
+  if (loading || error || !user) {
+    return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
+  }
 
   const detail = detailId ? orders.find(o => o.id === detailId) ?? null : null
 
