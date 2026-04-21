@@ -30,6 +30,7 @@ class CrmOpportunity(Base):
     area_sqm = Column(Numeric(8, 1), nullable=True)
 
     linked_order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
+    linked_lead_id = Column(UUID(as_uuid=True), ForeignKey("crm_opportunities.id", ondelete="SET NULL"), nullable=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 

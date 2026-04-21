@@ -89,6 +89,7 @@ async def create_opportunity(
         email=body.email.strip() if body.email else None,
         estimated_value_rub=body.estimated_value_rub,
         linked_order_id=body.linked_order_id,
+        linked_lead_id=body.linked_lead_id,
         source=body.source,
         assigned_to_id=body.assigned_to_id,
         address=body.address.strip() if body.address else None,

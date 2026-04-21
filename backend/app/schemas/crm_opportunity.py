@@ -30,6 +30,7 @@ class CrmOpportunityCreate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     estimated_value_rub: Optional[Decimal] = None
     linked_order_id: Optional[UUID] = None
+    linked_lead_id: Optional[UUID] = None
     source: Optional[str] = Field(None, max_length=50)
     assigned_to_id: Optional[UUID] = None
     stage: Optional[str] = Field(
@@ -52,6 +53,7 @@ class CrmOpportunityUpdate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     estimated_value_rub: Optional[Decimal] = None
     linked_order_id: Optional[UUID] = None
+    linked_lead_id: Optional[UUID] = None
     source: Optional[str] = Field(None, max_length=50)
     assigned_to_id: Optional[UUID] = None
     segment: Optional[CrmSegment] = None
@@ -72,6 +74,7 @@ class CrmOpportunityResponse(BaseModel):
     email: Optional[str] = None
     estimated_value_rub: Optional[Decimal] = None
     linked_order_id: Optional[UUID] = None
+    linked_lead_id: Optional[UUID] = None
     source: Optional[str] = None
     address: Optional[str] = None
     area_sqm: Optional[Decimal] = None

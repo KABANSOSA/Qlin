@@ -6,16 +6,27 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import {
   ArrowDown,
+  ArrowRight,
   ArrowUp,
   ArrowUpDown,
+  Building2,
+  Calendar,
+  CheckSquare2,
   Filter,
   LayoutGrid,
   List,
+  Mail,
+  MapPin,
+  MessageSquare,
   Pencil,
+  Phone,
   Plus,
   Search,
+  Send,
   Settings2,
   Trash2,
+  User2,
+  X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { CrmShell } from '@/components/crm-shell'
@@ -30,6 +41,9 @@ import {
   SOURCE_OPTIONS,
   STAGE_BADGE,
   STAGE_LABEL,
+  TASK_STATUS_BADGE,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_ORDER,
 } from '@/lib/crm-sales-config'
 import { cn } from '@/lib/utils'
 
@@ -63,6 +77,21 @@ interface CommentRow {
   body: string
   created_at: string
 }
+
+interface CrmTask {
+  id: string
+  title: string
+  status: string
+  deadline: string | null
+  opportunity_id: string | null
+  creator_phone: string | null
+  assigned_to_phone: string | null
+  created_at: string
+}
+
+type ActivityItem =
+  | { type: 'comment'; data: CommentRow; ts: number }
+  | { type: 'task'; data: CrmTask; ts: number }
 
 type SortKey = 'id' | 'phone' | 'title' | 'segment' | 'stage' | 'value' | 'created'
 
@@ -166,10 +195,15 @@ export default function CrmSalesPage() {
   const [cSource, setCSource] = useState('')
   const [cAddress, setCAddress] = useState('')
   const [cAreaSqm, setCAreaSqm] = useState('')
+  const [cLinkedLeadId, setCLinkedLeadId] = useState<string | null>(null)
   const [cErr, setCErr] = useState<string | null>(null)
 
   const [commentText, setCommentText] = useState('')
   const [detailStage, setDetailStage] = useState('')
+  const [detailTab, setDetailTab] = useState<'activity' | 'contacts'>('activity')
+  const [activityType, setActivityType] = useState<'comment' | 'task'>('comment')
+  const [activityText, setActivityText] = useState('')
+  const [activityTaskDeadline, setActivityTaskDeadline] = useState('')
 
   const [editMode, setEditMode] = useState(false)
   const [eTitle, setETitle] = useState('')
@@ -337,6 +371,7 @@ export default function CrmSalesPage() {
       }
       if (cOrderId.trim()) body.linked_order_id = cOrderId.trim()
       if (cSource) body.source = cSource
+      if (cLinkedLeadId) body.linked_lead_id = cLinkedLeadId
       if (kindTab === 'deal') {
         if (cAddress.trim()) body.address = cAddress.trim()
         if (cAreaSqm.trim()) {
@@ -360,6 +395,7 @@ export default function CrmSalesPage() {
       setCSource('')
       setCAddress('')
       setCAreaSqm('')
+      setCLinkedLeadId(null)
       qc.invalidateQueries({ queryKey: ['crm-opportunities'] })
     },
     onError: (e: unknown) => {
@@ -386,6 +422,50 @@ export default function CrmSalesPage() {
       setCommentText('')
       qc.invalidateQueries({ queryKey: ['crm-comments', detailId] })
     },
+  })
+
+  const detailTasksQuery = useQuery({
+    queryKey: ['crm-tasks-for-opp', detailId],
+    queryFn: async () => {
+      const { data } = await api.get<CrmTask[]>('/admin/crm/tasks', {
+        params: { opportunity_id: detailId },
+      })
+      return data
+    },
+    enabled: !!detailId && !!user,
+  })
+
+  const createActivityMut = useMutation({
+    mutationFn: async () => {
+      if (!detailId || !activityText.trim()) return
+      if (activityType === 'comment') {
+        await api.post(`/admin/crm/opportunities/${detailId}/comments`, { body: activityText.trim() })
+      } else {
+        const body: Record<string, unknown> = {
+          title: activityText.trim(),
+          status: 'todo',
+          opportunity_id: detailId,
+        }
+        if (activityTaskDeadline) body.deadline = new Date(activityTaskDeadline).toISOString()
+        await api.post('/admin/crm/tasks', body)
+      }
+    },
+    onSuccess: () => {
+      setActivityText('')
+      setActivityTaskDeadline('')
+      if (activityType === 'comment') {
+        qc.invalidateQueries({ queryKey: ['crm-comments', detailId] })
+      } else {
+        qc.invalidateQueries({ queryKey: ['crm-tasks-for-opp', detailId] })
+      }
+    },
+  })
+
+  const patchTaskStatusMut = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await api.patch(`/admin/crm/tasks/${id}`, { status })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['crm-tasks-for-opp', detailId] }),
   })
 
   const editMut = useMutation({
@@ -452,6 +532,10 @@ export default function CrmSalesPage() {
     setCommentText('')
     setEditMode(false)
     setDeleteConfirm(false)
+    setDetailTab('activity')
+    setActivityText('')
+    setActivityType('comment')
+    setActivityTaskDeadline('')
     setEErr(null)
     setETitle(o.title)
     setESegment(o.segment as 'b2b' | 'b2c')
@@ -465,6 +549,48 @@ export default function CrmSalesPage() {
     setEAddress(o.address || '')
     setEAreaSqm(o.area_sqm != null ? String(o.area_sqm) : '')
   }
+
+  const closeDetail = () => {
+    setDetailId(null)
+    setEditMode(false)
+    setDeleteConfirm(false)
+  }
+
+  const getStageProgress = (stage: string, kind: string) => {
+    const order = kind === 'lead' ? [...LEAD_STAGE_ORDER] : [...DEAL_STAGE_ORDER]
+    const active = order.filter((s) => s !== 'lost')
+    if (stage === 'lost') return { num: active.length, total: active.length, label: 'Потерян', isLost: true }
+    const idx = active.indexOf(stage)
+    return { num: idx + 1, total: active.length, label: STAGE_LABEL[stage] || stage, isLost: false }
+  }
+
+  const convertToDeal = (lead: Opportunity) => {
+    closeDetail()
+    setKindTab('deal')
+    setCTitle(`Сделка: ${lead.title}`)
+    setCContact(lead.contact_name || '')
+    setCPhone(lead.phone || '')
+    setCEmail(lead.email || '')
+    setCCompany(lead.company_name || '')
+    setCSegment(lead.segment as 'b2b' | 'b2c')
+    setCLinkedLeadId(lead.id)
+    setCErr(null)
+    setCreateOpen(true)
+  }
+
+  const activityFeed = useMemo((): ActivityItem[] => {
+    const comments: ActivityItem[] = (commentsQuery.data || []).map((c) => ({
+      type: 'comment',
+      data: c,
+      ts: new Date(c.created_at).getTime(),
+    }))
+    const tasks: ActivityItem[] = (detailTasksQuery.data || []).map((t) => ({
+      type: 'task',
+      data: t,
+      ts: new Date(t.created_at).getTime(),
+    }))
+    return [...comments, ...tasks].sort((a, b) => b.ts - a.ts)
+  }, [commentsQuery.data, detailTasksQuery.data])
 
   const viewTitle = kindTab === 'lead' ? 'Все лиды' : 'Все сделки'
 
@@ -1066,252 +1192,178 @@ export default function CrmSalesPage() {
       )}
 
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">
-                  {KIND_LABEL[detail.kind]} · {SEGMENT_LABEL[detail.segment]}
-                </p>
-                {!editMode && <h2 className="mt-1 text-lg font-semibold">{detail.title}</h2>}
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                {!editMode && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50">
+          <div className="flex h-full w-full max-w-[960px] flex-col bg-white shadow-2xl">
+            {/* ── HEADER ── */}
+            {(() => {
+              const sp = getStageProgress(detailStage, detail.kind)
+              return (
+                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-white px-5 py-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white', detail.kind === 'lead' ? 'bg-blue-500' : 'bg-emerald-500')}>
+                      {detail.kind === 'lead' ? 'Л' : 'С'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {KIND_LABEL[detail.kind]} · {SEGMENT_LABEL[detail.segment]}
+                      </p>
+                      <h2 className="truncate text-base font-semibold leading-tight text-foreground">{detail.title}</h2>
+                    </div>
+                  </div>
+                  {detail.estimated_value_rub != null && Number(detail.estimated_value_rub) > 0 && (
+                    <span className="shrink-0 text-base font-bold tabular-nums text-foreground">
+                      {Number(detail.estimated_value_rub).toLocaleString('ru-RU')} ₽
+                    </span>
+                  )}
                   <button
                     type="button"
-                    title="Редактировать"
                     onClick={() => {
-                      setETitle(detail.title)
-                      setESegment(detail.segment as 'b2b' | 'b2c')
-                      setEDesc(detail.description || '')
-                      setECompany(detail.company_name || '')
-                      setEContact(detail.contact_name || '')
-                      setEPhone(detail.phone || '')
-                      setEEmail(detail.email || '')
-                      setEValue(detail.estimated_value_rub != null ? String(detail.estimated_value_rub) : '')
-                      setEErr(null)
-                      setEditMode(true)
+                      const next = sp.isLost
+                        ? detailStages[0]
+                        : detailStages[(detailStages.indexOf(detailStage) + 1) % detailStages.length]
+                      setDetailStage(next)
+                      patchStageMut.mutate({ id: detail.id, stage: next })
                     }}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                    className={cn(
+                      'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-80',
+                      sp.isLost ? 'bg-red-100 text-red-700' : 'bg-blue-500 text-white',
+                    )}
                   >
-                    <Pencil className="h-4 w-4" />
+                    Этап {sp.num} из {sp.total}: {sp.label}
                   </button>
-                )}
-                <button
-                  type="button"
-                  title="Удалить"
-                  onClick={() => setDeleteConfirm(true)}
-                  className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDetailId(null)
-                    setEditMode(false)
-                    setDeleteConfirm(false)
-                  }}
-                  className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {detail.kind === 'lead' && (
+                      <button
+                        type="button"
+                        onClick={() => convertToDeal(detail)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                      >
+                        <ArrowRight className="h-3.5 w-3.5" />
+                        Создать сделку
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Редактировать"
+                      onClick={() => setDetailTab(detailTab === 'contacts' ? 'activity' : 'contacts')}
+                      className={cn('rounded-lg p-1.5 hover:bg-muted', detailTab === 'contacts' ? 'text-primary' : 'text-muted-foreground')}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Удалить"
+                      onClick={() => setDeleteConfirm(!deleteConfirm)}
+                      className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={closeDetail} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {deleteConfirm && (
-              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-medium text-red-800">Удалить этот лид безвозвратно?</p>
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    disabled={deleteMut.isPending}
-                    onClick={() => deleteMut.mutate()}
-                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {deleteMut.isPending ? 'Удаление…' : 'Да, удалить'}
+              <div className="shrink-0 border-b border-red-200 bg-red-50 px-5 py-2.5">
+                <div className="flex items-center gap-3">
+                  <p className="flex-1 text-sm text-red-800">Удалить безвозвратно?</p>
+                  <button type="button" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()} className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                    {deleteMut.isPending ? 'Удаление…' : 'Да'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteConfirm(false)}
-                    className="rounded-md border border-border px-3 py-1.5 text-xs"
-                  >
-                    Отмена
-                  </button>
+                  <button type="button" onClick={() => setDeleteConfirm(false)} className="rounded-md border border-border px-3 py-1 text-xs">Нет</button>
                 </div>
               </div>
             )}
 
-            {editMode ? (
-              <form
-                className="mt-4 flex flex-col gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (!eTitle.trim()) { setEErr('Укажите название'); return }
-                  editMut.mutate()
-                }}
-              >
-                <label className="text-xs text-muted-foreground">
-                  Сегмент *
-                  <select
-                    value={eSegment}
-                    onChange={(e) => setESegment(e.target.value as 'b2b' | 'b2c')}
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="b2c">B2C</option>
-                    <option value="b2b">B2B</option>
-                  </select>
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Название *
-                  <input
-                    value={eTitle}
-                    onChange={(e) => setETitle(e.target.value)}
-                    required
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Компания (для B2B)
-                  <input
-                    value={eCompany}
-                    onChange={(e) => setECompany(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Контактное лицо
-                  <input
-                    value={eContact}
-                    onChange={(e) => setEContact(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Телефон
-                  <input
-                    value={ePhone}
-                    onChange={(e) => setEPhone(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Email
-                  <input
-                    type="email"
-                    value={eEmail}
-                    onChange={(e) => setEEmail(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                {detail?.kind === 'lead' ? (
-                  <label className="text-xs text-muted-foreground">
-                    Источник
-                    <select
-                      value={eSource}
-                      onChange={(e) => setESource(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="">Не указан</option>
-                      {SOURCE_OPTIONS.map((s) => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </label>
+            {/* ── BODY ── */}
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+
+              {/* LEFT SIDEBAR */}
+              <div className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-[#fafbfc] p-4">
+
+                {detail.kind === 'lead' ? (
+                  <>
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Контакт</p>
+                      <div className="space-y-1.5">
+                        {detail.contact_name && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <User2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span>{detail.contact_name}</span>
+                          </div>
+                        )}
+                        {detail.phone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <a href={`tel:${detail.phone}`} className="text-primary hover:underline">{detail.phone}</a>
+                          </div>
+                        )}
+                        {detail.email && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <a href={`mailto:${detail.email}`} className="truncate text-primary hover:underline">{detail.email}</a>
+                          </div>
+                        )}
+                        {detail.company_name && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span>{detail.company_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Источник</p>
+                      <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs text-violet-700">
+                        {detail.source ? SOURCE_LABEL[detail.source] || detail.source : 'Не указан'}
+                      </span>
+                    </div>
+                  </>
                 ) : (
                   <>
-                    <label className="text-xs text-muted-foreground">
-                      Адрес
-                      <input
-                        value={eAddress}
-                        onChange={(e) => setEAddress(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                        placeholder="г. Москва, ул. Садовая, д. 12"
-                      />
-                    </label>
-                    <label className="text-xs text-muted-foreground">
-                      Площадь (м²)
-                      <input
-                        value={eAreaSqm}
-                        onChange={(e) => setEAreaSqm(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                        placeholder="45"
-                      />
-                    </label>
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Объект уборки</p>
+                      {detail.address ? (
+                        <div className="flex items-start gap-2 text-sm">
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span>{detail.address}</span>
+                        </div>
+                      ) : <p className="text-xs text-muted-foreground">Адрес не указан</p>}
+                      {detail.area_sqm != null && (
+                        <p className="mt-1 text-xs text-muted-foreground">{Number(detail.area_sqm)} м²</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Клиент</p>
+                      <div className="space-y-1.5">
+                        {detail.contact_name && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <User2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span>{detail.contact_name}</span>
+                          </div>
+                        )}
+                        {detail.phone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <a href={`tel:${detail.phone}`} className="text-primary hover:underline">{detail.phone}</a>
+                          </div>
+                        )}
+                        {detail.company_name && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span>{detail.company_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </>
                 )}
-                <label className="text-xs text-muted-foreground">
-                  Сумма (₽)
-                  <input
-                    value={eValue}
-                    onChange={(e) => setEValue(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Описание
-                  <textarea
-                    value={eDesc}
-                    onChange={(e) => setEDesc(e.target.value)}
-                    rows={3}
-                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  />
-                </label>
-                {eErr && <p className="text-sm text-red-600">{eErr}</p>}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={editMut.isPending}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-                  >
-                    {editMut.isPending ? 'Сохранение…' : 'Сохранить'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditMode(false)}
-                    className="rounded-lg border border-border px-4 py-2 text-sm"
-                  >
-                    Отмена
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <>
-                {detail.company_name && (
-                  <p className="mt-2 text-sm text-muted-foreground">Компания: {detail.company_name}</p>
-                )}
-                {(detail.contact_name || detail.phone || detail.email) && (
-                  <p className="mt-1 text-sm">
-                    {[detail.contact_name, detail.phone, detail.email].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                {detail.kind === 'deal' && detail.address && (
-                  <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                    <p className="font-medium text-foreground">{detail.address}</p>
-                    {detail.area_sqm != null && (
-                      <p className="text-xs text-muted-foreground">{Number(detail.area_sqm).toLocaleString('ru-RU')} м²</p>
-                    )}
-                  </div>
-                )}
-                {detail.estimated_value_rub != null && Number(detail.estimated_value_rub) > 0 && (
-                  <p className="mt-2 text-sm font-semibold tabular-nums text-primary">
-                    {Number(detail.estimated_value_rub).toLocaleString('ru-RU')} ₽
-                  </p>
-                )}
-                {(detail.source || detail.assigned_to_phone) && (
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    {detail.kind === 'lead' && detail.source && (
-                      <span>Источник: <span className="font-medium text-foreground">{SOURCE_LABEL[detail.source] || detail.source}</span></span>
-                    )}
-                    {detail.assigned_to_phone && (
-                      <span>Ответственный: <span className="font-medium text-foreground">{detail.assigned_to_phone}</span></span>
-                    )}
-                  </div>
-                )}
-                {detail.description && <p className="mt-3 text-sm whitespace-pre-wrap">{detail.description}</p>}
 
-                <div className="mt-4">
-                  <label className="text-xs font-medium text-muted-foreground">Этап воронки</label>
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Этап</p>
                   <select
                     value={detailStage}
                     onChange={(e) => {
@@ -1319,55 +1371,254 @@ export default function CrmSalesPage() {
                       setDetailStage(v)
                       patchStageMut.mutate({ id: detail.id, stage: v })
                     }}
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
                   >
                     {detailStages.map((s) => (
-                      <option key={s} value={s}>
-                        {STAGE_LABEL[s] || s}
-                      </option>
+                      <option key={s} value={s}>{STAGE_LABEL[s] || s}</option>
                     ))}
                   </select>
                 </div>
-              </>
-            )}
 
-            {!editMode && (
-              <div className="mt-6 border-t border-border pt-4">
-                <h3 className="text-sm font-semibold">Комментарии</h3>
-                <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-                  {commentsQuery.isLoading ? (
-                    <p className="text-xs text-muted-foreground">Загрузка…</p>
-                  ) : !(commentsQuery.data && commentsQuery.data.length) ? (
-                    <p className="text-xs text-muted-foreground">Пока нет комментариев</p>
-                  ) : (
-                    commentsQuery.data!.map((c) => (
-                      <div key={c.id} className="rounded-lg bg-muted/50 px-3 py-2 text-xs">
-                        <div className="flex justify-between gap-2 text-[10px] text-muted-foreground">
-                          <span>{c.author_phone || '—'}</span>
-                          <span>{format(new Date(c.created_at), 'd MMM HH:mm', { locale: ru })}</span>
-                        </div>
-                        <p className="mt-1 whitespace-pre-wrap text-foreground">{c.body}</p>
-                      </div>
-                    ))
-                  )}
+                {detail.assigned_to_phone && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Ответственный</p>
+                    <p className="text-sm">{detail.assigned_to_phone}</p>
+                  </div>
+                )}
+
+                {detail.description && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Описание</p>
+                    <p className="whitespace-pre-wrap text-xs text-foreground">{detail.description}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Создан</p>
+                  <p className="text-xs text-muted-foreground">{format(new Date(detail.created_at), 'd MMM yyyy, HH:mm', { locale: ru })}</p>
                 </div>
-                <textarea
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  rows={3}
-                  placeholder="Новый комментарий…"
-                  className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  disabled={!commentText.trim() || addCommentMut.isPending}
-                  onClick={() => addCommentMut.mutate()}
-                  className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-                >
-                  {addCommentMut.isPending ? 'Отправка…' : 'Добавить комментарий'}
-                </button>
               </div>
-            )}
+
+              {/* RIGHT CONTENT */}
+              <div className="flex flex-1 flex-col overflow-hidden">
+
+                {/* TABS */}
+                <div className="flex shrink-0 border-b border-border bg-white px-4">
+                  {(['activity', 'contacts'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setDetailTab(tab)}
+                      className={cn(
+                        'border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                        detailTab === tab
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {tab === 'activity' ? 'Активность' : 'Редактировать'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* TAB CONTENT */}
+                <div className="flex-1 overflow-y-auto">
+
+                  {detailTab === 'activity' && (
+                    <div className="flex flex-col gap-0">
+                      {/* INPUT AREA */}
+                      <div className="border-b border-border bg-white p-4">
+                        <div className="mb-2 flex gap-1">
+                          {(['comment', 'task'] as const).map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setActivityType(t)}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium',
+                                activityType === t
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                              )}
+                            >
+                              {t === 'comment' ? <MessageSquare className="h-3.5 w-3.5" /> : <CheckSquare2 className="h-3.5 w-3.5" />}
+                              {t === 'comment' ? 'Комментарий' : 'Задача'}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={activityText}
+                          onChange={(e) => setActivityText(e.target.value)}
+                          rows={2}
+                          placeholder={activityType === 'comment' ? 'Написать комментарий…' : 'Название задачи…'}
+                          className="w-full resize-none rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25"
+                        />
+                        {activityType === 'task' && (
+                          <input
+                            type="datetime-local"
+                            value={activityTaskDeadline}
+                            onChange={(e) => setActivityTaskDeadline(e.target.value)}
+                            className="mt-2 w-full rounded-lg border border-border px-3 py-1.5 text-xs"
+                          />
+                        )}
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            disabled={!activityText.trim() || createActivityMut.isPending}
+                            onClick={() => createActivityMut.mutate()}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            {createActivityMut.isPending ? 'Отправка…' : 'Отправить'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* FEED */}
+                      <div className="divide-y divide-border">
+                        {(commentsQuery.isLoading || detailTasksQuery.isLoading) && (
+                          <p className="px-5 py-6 text-sm text-muted-foreground">Загрузка…</p>
+                        )}
+                        {activityFeed.length === 0 && !commentsQuery.isLoading && !detailTasksQuery.isLoading && (
+                          <div className="flex flex-col items-center gap-2 px-5 py-10">
+                            <MessageSquare className="h-8 w-8 text-muted-foreground/30" />
+                            <p className="text-sm text-muted-foreground">Нет активности. Добавьте комментарий или задачу.</p>
+                          </div>
+                        )}
+                        {activityFeed.map((item) => (
+                          <div key={item.type + item.data.id} className="flex gap-3 px-5 py-3.5">
+                            <div className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full', item.type === 'comment' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500')}>
+                              {item.type === 'comment' ? <MessageSquare className="h-3.5 w-3.5" /> : <CheckSquare2 className="h-3.5 w-3.5" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              {item.type === 'comment' ? (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-foreground">{item.data.author_phone || 'Система'}</span>
+                                    <span className="text-[10px] text-muted-foreground">{format(new Date(item.data.created_at), 'd MMM, HH:mm', { locale: ru })}</span>
+                                  </div>
+                                  <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{(item.data as CommentRow).body}</p>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">{(item.data as CrmTask).title}</span>
+                                    <select
+                                      value={(item.data as CrmTask).status}
+                                      onChange={(e) => patchTaskStatusMut.mutate({ id: item.data.id, status: e.target.value })}
+                                      className={cn('rounded-full border-0 px-2 py-0.5 text-[10px] font-semibold cursor-pointer', TASK_STATUS_BADGE[(item.data as CrmTask).status] || 'bg-slate-100 text-slate-700')}
+                                    >
+                                      {TASK_STATUS_ORDER.map((s) => (
+                                        <option key={s} value={s}>{TASK_STATUS_LABEL[s]}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+                                    {(item.data as CrmTask).deadline && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {format(new Date((item.data as CrmTask).deadline!), 'd MMM yyyy, HH:mm', { locale: ru })}
+                                      </span>
+                                    )}
+                                    <span>{format(new Date(item.data.created_at), 'd MMM, HH:mm', { locale: ru })}</span>
+                                    {(item.data as CrmTask).assigned_to_phone && (
+                                      <span>→ {(item.data as CrmTask).assigned_to_phone}</span>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailTab === 'contacts' && (
+                    <div className="p-5">
+                      <form
+                        className="flex flex-col gap-3"
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          if (!eTitle.trim()) { setEErr('Укажите название'); return }
+                          editMut.mutate()
+                        }}
+                      >
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs text-muted-foreground">
+                            Сегмент
+                            <select value={eSegment} onChange={(e) => setESegment(e.target.value as 'b2b' | 'b2c')} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                              <option value="b2c">B2C</option>
+                              <option value="b2b">B2B</option>
+                            </select>
+                          </label>
+                          <label className="text-xs text-muted-foreground">
+                            Сумма (₽)
+                            <input value={eValue} onChange={(e) => setEValue(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                          </label>
+                        </div>
+                        <label className="text-xs text-muted-foreground">
+                          Название *
+                          <input value={eTitle} onChange={(e) => setETitle(e.target.value)} required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs text-muted-foreground">
+                            Имя клиента
+                            <input value={eContact} onChange={(e) => setEContact(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                          </label>
+                          <label className="text-xs text-muted-foreground">
+                            Телефон
+                            <input value={ePhone} onChange={(e) => setEPhone(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs text-muted-foreground">
+                            Email
+                            <input type="email" value={eEmail} onChange={(e) => setEEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                          </label>
+                          <label className="text-xs text-muted-foreground">
+                            Компания
+                            <input value={eCompany} onChange={(e) => setECompany(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                          </label>
+                        </div>
+                        {detail.kind === 'lead' ? (
+                          <label className="text-xs text-muted-foreground">
+                            Источник
+                            <select value={eSource} onChange={(e) => setESource(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                              <option value="">Не указан</option>
+                              {SOURCE_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            </select>
+                          </label>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            <label className="text-xs text-muted-foreground">
+                              Адрес
+                              <input value={eAddress} onChange={(e) => setEAddress(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="ул. Садовая, д. 12" />
+                            </label>
+                            <label className="text-xs text-muted-foreground">
+                              Площадь (м²)
+                              <input value={eAreaSqm} onChange={(e) => setEAreaSqm(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="45" />
+                            </label>
+                          </div>
+                        )}
+                        <label className="text-xs text-muted-foreground">
+                          Описание
+                          <textarea value={eDesc} onChange={(e) => setEDesc(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
+                        </label>
+                        {eErr && <p className="text-sm text-red-600">{eErr}</p>}
+                        <div className="flex gap-2 pt-1">
+                          <button type="submit" disabled={editMut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                            {editMut.isPending ? 'Сохранение…' : 'Сохранить изменения'}
+                          </button>
+                          <button type="button" onClick={() => setDetailTab('activity')} className="rounded-lg border border-border px-4 py-2 text-sm">Отмена</button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
