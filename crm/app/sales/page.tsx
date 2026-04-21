@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -173,6 +174,7 @@ function SortTh({
 export default function CrmSalesPage() {
   const { loading, user, error, retry } = useCrmAccess()
   const qc = useQueryClient()
+  const searchParams = useSearchParams()
   const [kindTab, setKindTab] = useState<'lead' | 'deal'>('lead')
   const [segmentFilter, setSegmentFilter] = useState<'all' | 'b2b' | 'b2c'>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('table')
@@ -276,6 +278,22 @@ export default function CrmSalesPage() {
     }
     return g
   }, [filteredRows, stages])
+
+  // Pre-fill create form from URL params (e.g. from /contacts page)
+  useEffect(() => {
+    const action = searchParams?.get('action')
+    if (action === 'new') {
+      const phone = searchParams?.get('phone') ?? ''
+      const name = searchParams?.get('name') ?? ''
+      if (phone) setCPhone(phone)
+      if (name) setCContact(name)
+      if (phone || name) {
+        setCTitle(name ? `Лид: ${name}` : `Лид: ${phone}`)
+        setCreateOpen(true)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     setSelectedIds(new Set())
