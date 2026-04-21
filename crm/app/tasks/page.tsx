@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -46,7 +46,27 @@ export default function CrmTasksPage() {
   const [cStatus, setCStatus] = useState<string>('todo')
   const [cDeadline, setCDeadline] = useState('')
   const [cOppId, setCOppId] = useState('')
+  const [cOppSearch, setCOppSearch] = useState('')
   const [cErr, setCErr] = useState<string | null>(null)
+
+  const { data: opportunities = [] } = useQuery({
+    queryKey: ['crm-opps-for-task-modal'],
+    queryFn: async () => {
+      const [a, b] = await Promise.all([
+        api.get<{ id: string; kind: string; title: string }[]>('/admin/crm/opportunities', { params: { kind: 'lead' } }),
+        api.get<{ id: string; kind: string; title: string }[]>('/admin/crm/opportunities', { params: { kind: 'deal' } }),
+      ])
+      return [...a.data, ...b.data]
+    },
+    enabled: !!user && createOpen,
+    staleTime: 60_000,
+  })
+
+  const filteredOpps = useMemo(() => {
+    const q = cOppSearch.trim().toLowerCase()
+    if (!q) return opportunities
+    return opportunities.filter(o => o.title.toLowerCase().includes(q))
+  }, [opportunities, cOppSearch])
 
   const { data: tasks = [], refetch, isFetching, isLoading } = useQuery({
     queryKey: ['crm-tasks', statusFilter],
@@ -77,6 +97,7 @@ export default function CrmTasksPage() {
       setCStatus('todo')
       setCDeadline('')
       setCOppId('')
+      setCOppSearch('')
       qc.invalidateQueries({ queryKey: ['crm-tasks'] })
     },
     onError: (e: unknown) => {
@@ -324,15 +345,45 @@ export default function CrmTasksPage() {
                   className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
                 />
               </label>
-              <label className="text-xs text-muted-foreground">
-                UUID лида/сделки (опционально)
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Лид / сделка (опционально)</span>
                 <input
-                  value={cOppId}
-                  onChange={(e) => setCOppId(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-mono text-xs"
-                  placeholder="опционально"
+                  value={cOppSearch}
+                  onChange={(e) => { setCOppSearch(e.target.value); setCOppId('') }}
+                  placeholder="Поиск по названию…"
+                  className="rounded-lg border border-border px-3 py-2 text-sm"
                 />
-              </label>
+                {cOppSearch.trim() && (
+                  <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-white shadow-sm">
+                    {filteredOpps.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">Ничего не найдено</p>
+                    ) : (
+                      filteredOpps.slice(0, 10).map(o => (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => { setCOppId(o.id); setCOppSearch(o.title) }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted',
+                            cOppId === o.id && 'bg-primary/10 font-medium',
+                          )}
+                        >
+                          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold', o.kind === 'lead' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700')}>
+                            {o.kind === 'lead' ? 'Л' : 'С'}
+                          </span>
+                          <span className="truncate">{o.title}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+                {cOppId && (
+                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+                    <span className="truncate">{cOppSearch}</span>
+                    <button type="button" onClick={() => { setCOppId(''); setCOppSearch('') }} className="ml-auto shrink-0 hover:text-red-500">✕</button>
+                  </div>
+                )}
+              </div>
               {cErr && <p className="text-sm text-red-600">{cErr}</p>}
               <div className="mt-2 flex gap-2">
                 <button

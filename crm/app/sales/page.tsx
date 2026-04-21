@@ -289,6 +289,17 @@ export default function CrmSalesPage() {
     })
   }, [rows])
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (detailId) { setDetailId(null); setEditMode(false); setDeleteConfirm(false) }
+        else if (createOpen) setCreateOpen(false)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [detailId, createOpen])
+
   const toggleSort = useCallback((key: SortKey) => {
     setSortKey((prev) => {
       if (prev !== key) {
@@ -522,6 +533,16 @@ export default function CrmSalesPage() {
     },
   })
 
+  const bulkDeleteMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map(id => api.delete(`/admin/crm/opportunities/${id}`)))
+    },
+    onSuccess: () => {
+      setSelectedIds(new Set())
+      qc.invalidateQueries({ queryKey: ['crm-opportunities'] })
+    },
+  })
+
   const activityFeed = useMemo((): ActivityItem[] => {
     const comments: ActivityItem[] = (commentsQuery.data || []).map((c) => ({
       type: 'comment' as const,
@@ -749,14 +770,27 @@ export default function CrmSalesPage() {
         ) : viewMode === 'table' ? (
           <div className="overflow-x-auto rounded-b-lg border border-border bg-white shadow-sm">
             {selectedIds.size > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-brand-muted/60 px-4 py-2 text-sm">
+              <div className="flex flex-wrap items-center gap-3 border-b border-border bg-brand-muted/60 px-4 py-2 text-sm">
                 <span className="font-medium text-foreground">
                   Выбрано: {selectedIds.size}
                 </span>
                 <button
                   type="button"
+                  disabled={bulkDeleteMut.isPending}
+                  onClick={() => {
+                    if (confirm(`Удалить ${selectedIds.size} записей? Это необратимо.`)) {
+                      bulkDeleteMut.mutate([...selectedIds])
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {bulkDeleteMut.isPending ? 'Удаление…' : 'Удалить выбранные'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSelectedIds(new Set())}
-                  className="text-xs font-medium text-brand hover:underline"
+                  className="ml-auto text-xs font-medium text-brand hover:underline"
                 >
                   Снять выделение
                 </button>

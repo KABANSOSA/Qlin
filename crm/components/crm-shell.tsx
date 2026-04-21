@@ -2,19 +2,34 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut, RefreshCw, Search } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  BarChart3,
+  CheckSquare2,
+  ClipboardList,
+  CreditCard,
+  Kanban,
+  LogOut,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const nav = [
-  { href: '/', label: 'Обзор' },
-  { href: '/orders', label: 'Заявки' },
-  { href: '/pipeline', label: 'Воронка' },
-  { href: '/sales', label: 'Лиды' },
-  { href: '/tasks', label: 'Задачи' },
-  { href: '/cleaners', label: 'Клинеры' },
-  { href: '/contacts', label: 'Контакты' },
-  { href: '/payments', label: 'Оплаты' },
-  { href: '/admins', label: 'Админы' },
+  { href: '/',          label: 'Обзор',    icon: BarChart3 },
+  { href: '/orders',    label: 'Заявки',   icon: ClipboardList },
+  { href: '/pipeline',  label: 'Воронка',  icon: Kanban },
+  { href: '/sales',     label: 'Лиды',     icon: TrendingUp },
+  { href: '/tasks',     label: 'Задачи',   icon: CheckSquare2, badge: true },
+  { href: '/cleaners',  label: 'Клинеры',  icon: Sparkles },
+  { href: '/contacts',  label: 'Контакты', icon: Users },
+  { href: '/payments',  label: 'Оплаты',   icon: CreditCard },
+  { href: '/admins',    label: 'Админы',   icon: ShieldCheck },
 ]
 
 export type CrmShellCreateAction = {
@@ -22,7 +37,6 @@ export type CrmShellCreateAction = {
   onClick: () => void
 }
 
-/** Управляемый поиск в шапке (например, страница «Лиды») */
 export type CrmShellHeaderSearch = {
   value: string
   onChange: (value: string) => void
@@ -41,12 +55,30 @@ export function CrmShell({
   mePhone?: string
   onRefresh?: () => void
   isFetching?: boolean
-  /** Красная кнопка «+ Создать» в шапке (например, лиды) */
   createAction?: CrmShellCreateAction
-  /** Если задан — поле «Поиск» в шапке живое и синхронизируется со страницей */
   headerSearch?: CrmShellHeaderSearch
 }) {
   const pathname = usePathname()
+
+  const { data: overdueCount = 0 } = useQuery({
+    queryKey: ['crm-tasks-overdue-badge'],
+    queryFn: async () => {
+      const { data } = await api.get<{ id: string; deadline: string | null; status: string }[]>(
+        '/admin/crm/tasks',
+      )
+      const now = new Date()
+      return data.filter(
+        (t) =>
+          t.deadline &&
+          t.status !== 'done' &&
+          t.status !== 'cancelled' &&
+          new Date(t.deadline) < now,
+      ).length
+    },
+    enabled: !!mePhone,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  })
 
   const navActive = (href: string) => {
     if (href === '/') return pathname === '/'
@@ -66,33 +98,43 @@ export function CrmShell({
     <div className="min-h-screen bg-[#f5f6f8]">
       <header className="sticky top-0 z-20 border-b border-border bg-white shadow-sm">
         <div className="mx-auto flex max-w-[1920px] flex-col gap-3 px-4 py-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-          <div className="flex min-w-0 flex-1 items-center gap-8 lg:gap-10">
+          <div className="flex min-w-0 flex-1 items-center gap-6 lg:gap-8">
             <Link href="/" className="flex shrink-0 items-center gap-2.5">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-brand text-lg font-bold text-white shadow-sm">
                 Q
               </div>
-              <span className="text-base font-bold tracking-tight text-foreground">QLIN CRM</span>
+              <span className="hidden text-base font-bold tracking-tight text-foreground sm:block">
+                QLIN CRM
+              </span>
             </Link>
 
             <nav
-              className="scrollbar-none flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 text-sm font-medium lg:gap-0 lg:gap-6"
+              className="scrollbar-none flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto pb-0.5 text-sm font-medium lg:gap-1"
               aria-label="Разделы CRM"
             >
               {nav.map((item) => {
                 const active = navActive(item.href)
+                const Icon = item.icon
+                const showBadge = item.badge && overdueCount > 0
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'whitespace-nowrap border-b-2 px-0.5 py-2 transition-colors',
+                      'relative flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
                       active
-                        ? 'border-brand text-brand'
-                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                        ? 'bg-brand/10 text-brand'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     )}
                   >
-                    {item.label}
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span>{item.label}</span>
+                    {showBadge && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-0.5 text-[10px] font-bold text-white">
+                        {overdueCount > 9 ? '9+' : overdueCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
@@ -149,7 +191,7 @@ export function CrmShell({
               className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <LogOut className="h-3.5 w-3.5" />
-              Выйти
+              <span className="hidden sm:inline">Выйти</span>
             </button>
           </div>
         </div>
