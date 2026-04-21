@@ -522,6 +522,20 @@ export default function CrmSalesPage() {
     },
   })
 
+  const activityFeed = useMemo((): ActivityItem[] => {
+    const comments: ActivityItem[] = (commentsQuery.data || []).map((c) => ({
+      type: 'comment' as const,
+      data: c,
+      ts: new Date(c.created_at).getTime(),
+    }))
+    const tasks: ActivityItem[] = (detailTasksQuery.data || []).map((t) => ({
+      type: 'task' as const,
+      data: t,
+      ts: new Date(t.created_at).getTime(),
+    }))
+    return [...comments, ...tasks].sort((a, b) => b.ts - a.ts)
+  }, [commentsQuery.data, detailTasksQuery.data])
+
   if (loading || error || !user) {
     return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
@@ -577,20 +591,6 @@ export default function CrmSalesPage() {
     setCErr(null)
     setCreateOpen(true)
   }
-
-  const activityFeed = useMemo((): ActivityItem[] => {
-    const comments: ActivityItem[] = (commentsQuery.data || []).map((c) => ({
-      type: 'comment',
-      data: c,
-      ts: new Date(c.created_at).getTime(),
-    }))
-    const tasks: ActivityItem[] = (detailTasksQuery.data || []).map((t) => ({
-      type: 'task',
-      data: t,
-      ts: new Date(t.created_at).getTime(),
-    }))
-    return [...comments, ...tasks].sort((a, b) => b.ts - a.ts)
-  }, [commentsQuery.data, detailTasksQuery.data])
 
   const viewTitle = kindTab === 'lead' ? 'Все лиды' : 'Все сделки'
 
