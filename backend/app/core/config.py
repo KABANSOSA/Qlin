@@ -56,33 +56,66 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: str = Field(
-        default="http://localhost:3000,http://localhost:3001",
+        default=(
+            "http://localhost:3000,http://localhost:3001,"
+            "https://qlin.pro,https://www.qlin.pro,https://crm.qlin.pro"
+        ),
         env="CORS_ORIGINS",
     )
-    
+
+    @staticmethod
+    def _apex_host(hostname: str) -> str:
+        h = (hostname or "").lower().strip()
+        if h.startswith("www."):
+            h = h[4:]
+        return h
+
+    def _ensure_crm_origin(self, out: List[str], seen_lower: set) -> None:
+        """Добавить https://crm.<apex> для каждого подходящего хоста из URL."""
+
+        def add_for_host(host: str) -> None:
+            host = self._apex_host(host)
+            if not host or host in ("localhost", "127.0.0.1"):
+                return
+            crm_origin = f"https://crm.{host}"
+            if crm_origin.lower() not in seen_lower:
+                out.append(crm_origin)
+                seen_lower.add(crm_origin.lower())
+
+        url_sources: List[str] = []
+        for raw in (
+            self.PUBLIC_SITE_URL,
+            self.NEXT_PUBLIC_PUBLIC_SITE_URL or "",
+            self.NEXT_PUBLIC_SITE_URL or "",
+        ):
+            s = (raw or "").strip()
+            if s:
+                url_sources.append(s)
+        for s in url_sources:
+            try:
+                add_for_host(urlparse(s).hostname or "")
+            except Exception:
+                pass
+        # Если в CORS_ORIGINS уже есть https://qlin.pro, но PUBLIC_SITE_URL на сервере сломан —
+        # всё равно вывести https://crm.qlin.pro из перечисленных origin.
+        for origin in list(out):
+            try:
+                add_for_host(urlparse(origin.strip()).hostname or "")
+            except Exception:
+                pass
+
     @property
     def cors_origins_list(self) -> List[str]:
         """
-        Список origin для CORS + автоматически https://crm.<домен> по PUBLIC_SITE_URL,
-        если в CORS_ORIGINS забыли поддомен CRM (типичная причина «Нет связи с API» в crm.*).
+        Список origin для CORS + автоматически https://crm.<домен>,
+        если забыли поддомен CRM (типичная причина «Нет связи с API» в crm.*).
         """
         if isinstance(self.CORS_ORIGINS, str):
             out = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
         else:
             out = list(self.CORS_ORIGINS) if isinstance(self.CORS_ORIGINS, list) else []
         seen_lower = {o.lower() for o in out}
-        try:
-            pu = urlparse(self.PUBLIC_SITE_URL.strip())
-            host = (pu.hostname or "").lower()
-            if host.startswith("www."):
-                host = host[4:]
-            if host and host not in ("localhost", "127.0.0.1"):
-                crm_origin = f"https://crm.{host}"
-                if crm_origin.lower() not in seen_lower:
-                    out.append(crm_origin)
-                    seen_lower.add(crm_origin.lower())
-        except Exception:
-            pass
+        self._ensure_crm_origin(out, seen_lower)
         return out
 
     # Telegram Bot (в .env на проде — реальные значения; для локального Docker см. docker-compose.yml)
