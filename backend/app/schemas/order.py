@@ -34,6 +34,10 @@ class OrderCreate(BaseModel):
         default=None,
         description="Город обслуживания — подбор зоны и тарифа (Хабаровск / Южно-Сахалинск)",
     )
+    payment_method: Optional[Literal["cash", "transfer"]] = Field(
+        default=None,
+        description="Способ оплаты: cash — наличными, transfer — банковский перевод",
+    )
 
 
 class OrderUpdate(BaseModel):
@@ -41,6 +45,7 @@ class OrderUpdate(BaseModel):
     address: Optional[str] = None
     scheduled_at: Optional[datetime] = None
     special_instructions: Optional[str] = None
+    payment_method: Optional[Literal["cash", "transfer"]] = None
 
 
 class OrderStatusUpdate(BaseModel):
@@ -99,7 +104,23 @@ class OrderResponse(BaseModel):
 
 
 class OrderAdminResponse(OrderResponse):
-    """Расширенный заказ для CRM/админки: контакт клиента."""
+    """Расширенный заказ для CRM/админки: контакт клиента + клинер + маржинальность."""
 
     customer_phone: Optional[str] = None
     customer_email: Optional[str] = None
+    cleaner_phone: Optional[str] = None
+    cleaner_name: Optional[str] = None
+
+    cleaner_payout: Optional[Decimal] = None
+    supply_cost: Decimal = Decimal("0")
+    other_cost: Decimal = Decimal("0")
+    margin_rub: Optional[Decimal] = None
+    margin_pct: Optional[float] = None
+
+
+class OrderCostsUpdate(BaseModel):
+    """Ручная корректировка себестоимости заказа (админ)."""
+
+    cleaner_payout: Optional[Decimal] = Field(default=None, ge=0)
+    supply_cost: Optional[Decimal] = Field(default=None, ge=0)
+    other_cost: Optional[Decimal] = Field(default=None, ge=0)
