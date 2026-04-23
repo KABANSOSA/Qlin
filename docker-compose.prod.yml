@@ -68,7 +68,9 @@ services:
       - qlin_network
     ports:
       - "8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    # На VPS с 1–2 ГБ RAM несколько воркеров + Celery часто дают OOM → RST на curl и 502 в nginx.
+    # Задайте в .env при необходимости: UVICORN_WORKERS=4
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}
 
   celery:
     build:
