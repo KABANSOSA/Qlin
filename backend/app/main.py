@@ -38,6 +38,13 @@ app.add_middleware(
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
 
+# Совместимость с nginx: `location /api/` + `proxy_pass http://127.0.0.1:8000/;` (слэш после порта)
+# подменяет префикс /api/ на /, и на бэкенд приходит /v1/health вместо /api/v1/health.
+@app.get("/v1/health", include_in_schema=False)
+@app.get("/v1/health/", include_in_schema=False)
+async def health_compat_stripped_api_prefix():
+    return await build_health_json_response()
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
