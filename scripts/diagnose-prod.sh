@@ -30,10 +30,10 @@ code=$(curl -sS -o /dev/null -w "%{http_code}" -m 5 "http://127.0.0.1:3002/" || 
 echo "HTTP $code"
 
 echo ""
-echo "=== 5. API через тот же путь, что и сайт (если nginx на 443) ==="
-echo "Проверка снаружи (замените домен при необходимости):"
-echo "  curl -sS https://qlin.pro/api/v1/ | head -c 200"
-echo "  curl -sS https://qlin.pro/health"
+echo "=== 5. API снаружи (через nginx) ==="
+echo "  curl -sSI https://qlin.pro/api/v1/auth/me | head -5   # ожидается 401 JSON от FastAPI"
+echo "  curl -sSI https://qlin.pro/docs | head -3           # Swagger бэкенда (если location /docs в nginx)"
+echo "Важно: https://qlin.pro/health даст HTML от Next.js, если нет отдельного location — см. nginx-qlin-main.example.conf"
 
 echo ""
 echo "=== 6. Последние строки логов backend (ошибки старта / БД) ==="
