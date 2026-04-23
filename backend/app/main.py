@@ -1,16 +1,20 @@
 """
 Main FastAPI application entry point.
 """
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
 from app.core.config import settings
+from app.core.health_check import build_health_json_response
+from app.core.logging_config import setup_logging
 from app.api.v1 import api_router
 
 import app.models  # noqa: F401 — регистрация ORM-моделей
 
-# Note: Tables are created via Alembic migrations, not here
+setup_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="QLIN API",
@@ -19,7 +23,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
-    # Без этого Starlette даёт 307 на .../orders/ с Location: http://... за nginx → mixed content в браузере
     redirect_slashes=False,
 )
 
@@ -36,9 +39,36 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    import time
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
+
+    if request.url.path not in ("/", "/health"):
+        logger.info(
+            "%s %s → %s (%sms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+    return response
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Внутренняя ошибка сервера"},
+    )
+
+
 @app.get("/")
 async def root():
-    """Health check endpoint."""
     return JSONResponse(
         content={
             "status": "ok",
@@ -50,14 +80,8 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check."""
-    return JSONResponse(
-        content={
-            "status": "healthy",
-            "database": "connected",
-            "redis": "connected",
-        }
-    )
+    """Проверяет реальные подключения к PostgreSQL и Redis."""
+    return await build_health_json_response()
 
 
 if __name__ == "__main__":
