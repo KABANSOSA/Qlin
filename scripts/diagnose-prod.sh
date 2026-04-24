@@ -36,6 +36,13 @@ echo "  curl -sSI https://qlin.pro/api/v1/auth/me | head -5   # 401 без то�
 echo "https://qlin.pro/health без отдельного location в nginx — HTML от Next.js; используйте /api/v1/health"
 
 echo ""
+echo "=== 5b. CORS для CRM (OPTIONS с Origin поддомена) ==="
+echo "Ожидается 200/204 и заголовок access-control-allow-origin: https://crm.qlin.pro"
+curl -sSI -m 10 -X OPTIONS "https://qlin.pro/api/v1/auth/me" \
+  -H "Origin: https://crm.qlin.pro" \
+  -H "Access-Control-Request-Method: GET" 2>/dev/null | head -25 || echo "curl failed (сеть / SSL / nginx)"
+
+echo ""
 echo "=== 6. Последние строки логов backend (ошибки старта / БД) ==="
 eval "$DC logs backend --tail 40" 2>/dev/null || true
 
@@ -43,5 +50,5 @@ echo ""
 echo "=== Подсказки ==="
 echo "- Если backend в Restarting: смотрите логи (SECRET_KEY, DATABASE_URL, миграции)."
 echo "- Сайт без API: в nginx для qlin.pro должен быть location /api/ → 127.0.0.1:8000 (см. nginx-qlin-main.example.conf)."
-echo "- CRM без API: CORS + запросы на https://qlin.pro/api/v1; в .env задайте CORS_ORIGINS с https://crm.qlin.pro; пересоберите backend."
+echo "- CRM «Нет связи с API»: см. блок 5b (CORS). Не оставляйте CORS_ORIGINS= пустым в .env. Nginx: crm.qlin.pro → 127.0.0.1:3002 (см. nginx-crm-subdomain.example.conf)."
 echo "- SSL: certbot / срок сертификата; nginx -t"

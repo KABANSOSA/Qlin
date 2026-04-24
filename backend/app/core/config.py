@@ -7,6 +7,13 @@ from urllib.parse import urlparse
 from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Пустая строка в .env для CORS_ORIGINS / PUBLIC_SITE_URL ломает CRM («Нет связи с API»).
+_DEFAULT_PUBLIC_SITE_URL = "https://qlin.pro"
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000,http://localhost:3001,"
+    "https://qlin.pro,https://www.qlin.pro,https://crm.qlin.pro"
+)
+
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -44,7 +51,7 @@ class Settings(BaseSettings):
     REDIS_CACHE_TTL: int = 3600
 
     # Публичный URL сайта (ссылки в письмах сброса пароля)
-    PUBLIC_SITE_URL: str = Field(default="https://qlin.pro", env="PUBLIC_SITE_URL")
+    PUBLIC_SITE_URL: str = Field(default=_DEFAULT_PUBLIC_SITE_URL, env="PUBLIC_SITE_URL")
 
     # SMTP — для восстановления пароля (если не задано SMTP_HOST — /forgot-password вернёт 503)
     SMTP_HOST: Optional[str] = Field(default=None, env="SMTP_HOST")
@@ -55,13 +62,21 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = Field(default=True, env="SMTP_USE_TLS")
 
     # CORS
-    CORS_ORIGINS: str = Field(
-        default=(
-            "http://localhost:3000,http://localhost:3001,"
-            "https://qlin.pro,https://www.qlin.pro,https://crm.qlin.pro"
-        ),
-        env="CORS_ORIGINS",
-    )
+    CORS_ORIGINS: str = Field(default=_DEFAULT_CORS_ORIGINS, env="CORS_ORIGINS")
+
+    @field_validator("PUBLIC_SITE_URL", mode="before")
+    @classmethod
+    def public_site_url_non_empty(cls, v: object) -> object:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return _DEFAULT_PUBLIC_SITE_URL
+        return v
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def cors_origins_non_empty(cls, v: object) -> object:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return _DEFAULT_CORS_ORIGINS
+        return v
 
     @staticmethod
     def _apex_host(hostname: str) -> str:
