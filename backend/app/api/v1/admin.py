@@ -65,13 +65,17 @@ _ORDER_LOAD_BASE = (
     Order.created_at,
     Order.updated_at,
 )
-_ORDER_LOAD_MARGIN = (Order.cleaner_payout, Order.supply_cost, Order.other_cost)
 
 
 def _order_row_load_only(has_margin: bool):
     cols = list(_ORDER_LOAD_BASE)
+    # Не трогаем Order.cleaner_payout на уровне модуля: в старых образах модель Order без этих колонок —
+    # иначе AttributeError при импорте admin.py.
     if has_margin:
-        cols.extend(_ORDER_LOAD_MARGIN)
+        for name in ("cleaner_payout", "supply_cost", "other_cost"):
+            col = getattr(Order, name, None)
+            if col is not None:
+                cols.append(col)
     return load_only(*cols)
 
 
