@@ -128,6 +128,9 @@ export default function CrmOrdersPage() {
   const [commentText, setCommentText] = useState('')
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDeadline, setTaskDeadline] = useState('')
+  const [financeMarginPct, setFinanceMarginPct] = useState('10')
+  const [financeSupplyCost, setFinanceSupplyCost] = useState('0')
+  const [financeOtherCost, setFinanceOtherCost] = useState('0')
 
   const { data: orders = [], isLoading, error: ordersError, refetch, isFetching } = useQuery({
     queryKey: ['admin-orders', user?.id, statusFilter],
@@ -148,6 +151,14 @@ export default function CrmOrdersPage() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    const detail = detailId ? orders.find(o => o.id === detailId) ?? null : null
+    if (!detail) return
+    setFinanceMarginPct(String(detail.margin_pct ?? 10))
+    setFinanceSupplyCost(String(detail.supply_cost ?? 0))
+    setFinanceOtherCost(String(detail.other_cost ?? 0))
+  }, [detailId, orders])
 
   const counts = useMemo(
     () =>
@@ -222,6 +233,20 @@ export default function CrmOrdersPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-order-tasks', detailId] })
+    },
+  })
+
+  const updateFinance = useMutation({
+    mutationFn: async () => {
+      if (!detailId) return
+      await api.patch(`/admin/orders/${detailId}/costs`, {
+        margin_pct: Number(financeMarginPct || 0),
+        supply_cost: Number(financeSupplyCost || 0),
+        other_cost: Number(financeOtherCost || 0),
+      })
+    },
+    onSuccess: () => {
+      refetch()
     },
   })
 
@@ -684,6 +709,56 @@ export default function CrmOrdersPage() {
                             </span>
                           </div>
                         </div>
+                      </div>
+                      <div className="rounded-xl border border-border bg-card p-4">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ручная маржа</p>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="text-xs text-muted-foreground">
+                            Маржа, %
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              value={financeMarginPct}
+                              onChange={e => setFinanceMarginPct(e.target.value)}
+                              className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-foreground outline-none focus:border-primary"
+                            />
+                          </label>
+                          <label className="text-xs text-muted-foreground">
+                            Расходники, ₽
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={financeSupplyCost}
+                              onChange={e => setFinanceSupplyCost(e.target.value)}
+                              className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-foreground outline-none focus:border-primary"
+                            />
+                          </label>
+                          <label className="text-xs text-muted-foreground">
+                            Прочее, ₽
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={financeOtherCost}
+                              onChange={e => setFinanceOtherCost(e.target.value)}
+                              className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-foreground outline-none focus:border-primary"
+                            />
+                          </label>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          По умолчанию для новых заказов маржа 10%. При сохранении CRM пересчитает выплату клинеру.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={updateFinance.isPending}
+                          onClick={() => updateFinance.mutate()}
+                          className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                        >
+                          {updateFinance.isPending ? 'Сохранение...' : 'Сохранить маржу'}
+                        </button>
                       </div>
                       <div className="rounded-xl border border-border bg-card p-4">
                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Статус оплаты</p>

@@ -304,12 +304,18 @@ async def admin_update_order_costs(
         raise HTTPException(status_code=404, detail="Заказ не найден")
 
     if has_margin:
-        if body.cleaner_payout is not None:
-            order.cleaner_payout = body.cleaner_payout
         if body.supply_cost is not None:
             order.supply_cost = body.supply_cost
         if body.other_cost is not None:
             order.other_cost = body.other_cost
+        if body.margin_pct is not None:
+            total = Decimal(str(order.total_price or 0))
+            supply = Decimal(str(order.supply_cost or 0))
+            other = Decimal(str(order.other_cost or 0))
+            target_margin = (total * body.margin_pct / Decimal("100")).quantize(Decimal("0.01"))
+            order.cleaner_payout = max(Decimal("0"), total - target_margin - supply - other)
+        elif body.cleaner_payout is not None:
+            order.cleaner_payout = body.cleaner_payout
 
     db.commit()
     if has_margin:

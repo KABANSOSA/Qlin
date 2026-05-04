@@ -21,7 +21,7 @@ class OrderCreate(BaseModel):
     cleaning_type: str = Field(..., min_length=1)
     rooms_count: int = Field(default=1, ge=1)
     bathrooms_count: int = Field(default=1, ge=0)
-    area_sqm: Optional[Decimal] = None
+    area_sqm: Decimal = Field(..., gt=0, le=500)
     has_pets: bool = False
     has_balcony: bool = False
     special_instructions: Optional[str] = None
@@ -124,3 +124,4 @@ class OrderCostsUpdate(BaseModel):
     cleaner_payout: Optional[Decimal] = Field(default=None, ge=0)
     supply_cost: Optional[Decimal] = Field(default=None, ge=0)
     other_cost: Optional[Decimal] = Field(default=None, ge=0)
+    margin_pct: Optional[Decimal] = Field(default=None, ge=0, le=100)
