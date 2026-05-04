@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import {
@@ -46,6 +46,24 @@ interface CrmOrder {
   margin_pct?: number | null
 }
 
+interface CrmOrderComment {
+  id: string
+  order_id?: string | null
+  author_phone?: string | null
+  body: string
+  created_at: string
+}
+
+interface CrmOrderTask {
+  id: string
+  title: string
+  status: string
+  deadline?: string | null
+  order_id?: string | null
+  creator_phone?: string | null
+  created_at: string
+}
+
 const STATUS_TABS = [
   { value: '', label: 'Все' },
   { value: 'pending', label: 'Ожидает' },
@@ -77,6 +95,20 @@ const PAY_LABEL: Record<string, string> = {
   refunded: 'Возврат',
 }
 
+const TASK_LABEL: Record<string, string> = {
+  todo: 'Новая',
+  in_progress: 'В работе',
+  done: 'Готово',
+  cancelled: 'Отменена',
+}
+
+const TASK_CLASS: Record<string, string> = {
+  todo: 'bg-amber-100 text-amber-800',
+  in_progress: 'bg-violet-100 text-violet-800',
+  done: 'bg-emerald-100 text-emerald-700',
+  cancelled: 'bg-slate-100 text-slate-600',
+}
+
 function marginColor(pct: number | null | undefined): string {
   if (pct == null) return 'text-muted-foreground'
   if (pct >= 35) return 'text-emerald-600 font-semibold'
@@ -91,8 +123,11 @@ export default function CrmOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
-  const [detailTab, setDetailTab] = useState<'actions' | 'finance'>('actions')
+  const [detailTab, setDetailTab] = useState<'actions' | 'notes' | 'finance'>('actions')
   const [assignOrder, setAssignOrder] = useState<AssignOrderMinimal | null>(null)
+  const [commentText, setCommentText] = useState('')
+  const [taskTitle, setTaskTitle] = useState('')
+  const [taskDeadline, setTaskDeadline] = useState('')
 
   const { data: orders = [], isLoading, error: ordersError, refetch, isFetching } = useQuery({
     queryKey: ['admin-orders', user?.id, statusFilter],
@@ -133,11 +168,66 @@ export default function CrmOrdersPage() {
     )
   }, [orders, search])
 
+  const detail = detailId ? orders.find(o => o.id === detailId) ?? null : null
+
+  const commentsQuery = useQuery({
+    queryKey: ['admin-order-comments', detailId],
+    queryFn: async () => {
+      const { data } = await api.get<CrmOrderComment[]>(`/admin/crm/orders/${detailId}/comments`)
+      return data
+    },
+    enabled: !!user && !!detailId,
+  })
+
+  const tasksQuery = useQuery({
+    queryKey: ['admin-order-tasks', detailId],
+    queryFn: async () => {
+      const { data } = await api.get<CrmOrderTask[]>(`/admin/crm/orders/${detailId}/tasks`)
+      return data
+    },
+    enabled: !!user && !!detailId,
+  })
+
+  const addComment = useMutation({
+    mutationFn: async () => {
+      const body = commentText.trim()
+      if (!detailId || !body) return
+      await api.post(`/admin/crm/orders/${detailId}/comments`, { body })
+    },
+    onSuccess: () => {
+      setCommentText('')
+      qc.invalidateQueries({ queryKey: ['admin-order-comments', detailId] })
+    },
+  })
+
+  const addTask = useMutation({
+    mutationFn: async () => {
+      const title = taskTitle.trim()
+      if (!detailId || !title) return
+      await api.post(`/admin/crm/orders/${detailId}/tasks`, {
+        title,
+        deadline: taskDeadline ? new Date(taskDeadline).toISOString() : undefined,
+      })
+    },
+    onSuccess: () => {
+      setTaskTitle('')
+      setTaskDeadline('')
+      qc.invalidateQueries({ queryKey: ['admin-order-tasks', detailId] })
+    },
+  })
+
+  const updateTaskStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await api.patch(`/admin/crm/tasks/${id}`, { status })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-order-tasks', detailId] })
+    },
+  })
+
   if (loading || error || !user) {
     return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
-
-  const detail = detailId ? orders.find(o => o.id === detailId) ?? null : null
 
   return (
     <CrmShell mePhone={user.phone} onRefresh={() => refetch()} isFetching={isFetching}>
@@ -391,7 +481,7 @@ export default function CrmOrdersPage() {
               <div className="flex flex-1 flex-col overflow-hidden">
                 {/* Tabs */}
                 <div className="flex shrink-0 border-b border-border bg-white px-4">
-                  {(['actions', 'finance'] as const).map(tab => (
+                  {(['actions', 'notes', 'finance'] as const).map(tab => (
                     <button
                       key={tab}
                       type="button"
@@ -401,7 +491,7 @@ export default function CrmOrdersPage() {
                         detailTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground',
                       )}
                     >
-                      {tab === 'actions' ? 'Действия' : 'Финансы'}
+                      {tab === 'actions' ? 'Действия' : tab === 'notes' ? 'Комментарии и задачи' : 'Финансы'}
                     </button>
                   ))}
                 </div>
@@ -455,6 +545,113 @@ export default function CrmOrdersPage() {
                           Открыть страницу заказа
                         </a>
                       </div>
+                    </div>
+                  )}
+
+                  {detailTab === 'notes' && (
+                    <div className="grid gap-5 xl:grid-cols-2">
+                      <section className="rounded-xl border border-border bg-card p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold">Комментарии</h3>
+                          <span className="text-xs text-muted-foreground">{commentsQuery.data?.length ?? 0}</span>
+                        </div>
+                        <div className="space-y-3">
+                          <textarea
+                            value={commentText}
+                            onChange={e => setCommentText(e.target.value)}
+                            placeholder="Напишите комментарий по заказу..."
+                            rows={4}
+                            className="w-full resize-none rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+                          />
+                          <button
+                            type="button"
+                            disabled={!commentText.trim() || addComment.isPending}
+                            onClick={() => addComment.mutate()}
+                            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                          >
+                            {addComment.isPending ? 'Сохранение...' : 'Добавить комментарий'}
+                          </button>
+                        </div>
+                        <div className="mt-5 space-y-3">
+                          {commentsQuery.isLoading ? (
+                            <p className="text-sm text-muted-foreground">Загрузка комментариев...</p>
+                          ) : commentsQuery.data?.length ? (
+                            commentsQuery.data.map(c => (
+                              <div key={c.id} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                                <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                                  <span>{c.author_phone || 'Администратор'}</span>
+                                  <span>{format(new Date(c.created_at), 'd MMM, HH:mm', { locale: ru })}</span>
+                                </div>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{c.body}</p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Комментариев пока нет.</p>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl border border-border bg-card p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold">Задачи</h3>
+                          <span className="text-xs text-muted-foreground">{tasksQuery.data?.length ?? 0}</span>
+                        </div>
+                        <div className="space-y-3">
+                          <input
+                            value={taskTitle}
+                            onChange={e => setTaskTitle(e.target.value)}
+                            placeholder="Например: позвонить клиенту"
+                            className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm outline-none focus:border-primary"
+                          />
+                          <input
+                            type="datetime-local"
+                            value={taskDeadline}
+                            onChange={e => setTaskDeadline(e.target.value)}
+                            className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm outline-none focus:border-primary"
+                          />
+                          <button
+                            type="button"
+                            disabled={!taskTitle.trim() || addTask.isPending}
+                            onClick={() => addTask.mutate()}
+                            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                          >
+                            {addTask.isPending ? 'Создание...' : 'Создать задачу'}
+                          </button>
+                        </div>
+                        <div className="mt-5 space-y-3">
+                          {tasksQuery.isLoading ? (
+                            <p className="text-sm text-muted-foreground">Загрузка задач...</p>
+                          ) : tasksQuery.data?.length ? (
+                            tasksQuery.data.map(t => (
+                              <div key={t.id} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-medium">{t.title}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {t.deadline
+                                        ? `Дедлайн: ${format(new Date(t.deadline), 'd MMM, HH:mm', { locale: ru })}`
+                                        : 'Без дедлайна'}
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={t.status}
+                                    disabled={updateTaskStatus.isPending}
+                                    onChange={e => updateTaskStatus.mutate({ id: t.id, status: e.target.value })}
+                                    className={cn('rounded-md border border-border px-2 py-1 text-xs', TASK_CLASS[t.status] || 'bg-white')}
+                                  >
+                                    <option value="todo">{TASK_LABEL.todo}</option>
+                                    <option value="in_progress">{TASK_LABEL.in_progress}</option>
+                                    <option value="done">{TASK_LABEL.done}</option>
+                                    <option value="cancelled">{TASK_LABEL.cancelled}</option>
+                                  </select>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Задач пока нет.</p>
+                          )}
+                        </div>
+                      </section>
                     </div>
                   )}
 

@@ -212,6 +212,72 @@ async def add_comment(
     return CrmCommentResponse(
         id=c.id,
         opportunity_id=c.opportunity_id,
+        order_id=c.order_id,
+        author_id=c.author_id,
+        author_phone=current_user.phone,
+        body=c.body,
+        created_at=c.created_at,
+    )
+
+
+# ── Order comments ─────────────────────────────────────────────────────────
+
+@router.get("/orders/{order_id}/comments", response_model=List[CrmCommentResponse])
+async def list_order_comments(
+    order_id: UUID,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.query(Order).filter(Order.id == order_id).first():
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    rows = (
+        db.query(CrmOpportunityComment, User.phone)
+        .outerjoin(User, CrmOpportunityComment.author_id == User.id)
+        .filter(CrmOpportunityComment.order_id == order_id)
+        .order_by(CrmOpportunityComment.created_at.asc())
+        .all()
+    )
+    out: List[CrmCommentResponse] = []
+    for c, phone in rows:
+        out.append(
+            CrmCommentResponse(
+                id=c.id,
+                opportunity_id=c.opportunity_id,
+                order_id=c.order_id,
+                author_id=c.author_id,
+                author_phone=phone,
+                body=c.body,
+                created_at=c.created_at,
+            )
+        )
+    return out
+
+
+@router.post(
+    "/orders/{order_id}/comments",
+    response_model=CrmCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_order_comment(
+    order_id: UUID,
+    body: CrmCommentCreate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.query(Order).filter(Order.id == order_id).first():
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    c = CrmOpportunityComment(
+        order_id=order_id,
+        author_id=current_user.id,
+        body=body.body.strip(),
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return CrmCommentResponse(
+        id=c.id,
+        opportunity_id=c.opportunity_id,
+        order_id=c.order_id,
         author_id=c.author_id,
         author_phone=current_user.phone,
         body=c.body,
@@ -225,6 +291,7 @@ def _task_to_response(task: CrmTask, db: Session) -> CrmTaskResponse:
     creator_phone: Optional[str] = None
     assigned_phone: Optional[str] = None
     opp_title: Optional[str] = None
+    order_number: Optional[str] = None
     if task.creator_id:
         u = db.query(User).filter(User.id == task.creator_id).first()
         if u:
@@ -237,6 +304,10 @@ def _task_to_response(task: CrmTask, db: Session) -> CrmTaskResponse:
         o = db.query(CrmOpportunity).filter(CrmOpportunity.id == task.opportunity_id).first()
         if o:
             opp_title = o.title
+    if task.order_id:
+        order = db.query(Order).filter(Order.id == task.order_id).first()
+        if order:
+            order_number = order.order_number
     return CrmTaskResponse(
         id=task.id,
         title=task.title,
@@ -244,6 +315,8 @@ def _task_to_response(task: CrmTask, db: Session) -> CrmTaskResponse:
         deadline=task.deadline,
         opportunity_id=task.opportunity_id,
         opportunity_title=opp_title,
+        order_id=task.order_id,
+        order_number=order_number,
         creator_id=task.creator_id,
         creator_phone=creator_phone,
         assigned_to_id=task.assigned_to_id,
@@ -257,6 +330,7 @@ def _task_to_response(task: CrmTask, db: Session) -> CrmTaskResponse:
 async def list_tasks(
     task_status: Optional[str] = Query(None, alias="status"),
     opportunity_id: Optional[UUID] = Query(None),
+    order_id: Optional[UUID] = Query(None),
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_admin),
@@ -267,6 +341,8 @@ async def list_tasks(
         q = q.filter(CrmTask.status == task_status)
     if opportunity_id:
         q = q.filter(CrmTask.opportunity_id == opportunity_id)
+    if order_id:
+        q = q.filter(CrmTask.order_id == order_id)
     rows = q.offset(offset).limit(limit).all()
     return [_task_to_response(r, db) for r in rows]
 
@@ -280,11 +356,56 @@ async def create_task(
     if body.opportunity_id:
         if not db.query(CrmOpportunity).filter(CrmOpportunity.id == body.opportunity_id).first():
             raise HTTPException(status_code=400, detail="Лид/сделка не найдена")
+    if body.order_id:
+        if not db.query(Order).filter(Order.id == body.order_id).first():
+            raise HTTPException(status_code=400, detail="Заказ не найден")
     task = CrmTask(
         title=body.title.strip(),
         status=body.status,
         deadline=body.deadline,
         opportunity_id=body.opportunity_id,
+        order_id=body.order_id,
+        assigned_to_id=body.assigned_to_id,
+        creator_id=current_user.id,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return _task_to_response(task, db)
+
+
+@router.get("/orders/{order_id}/tasks", response_model=List[CrmTaskResponse])
+async def list_order_tasks(
+    order_id: UUID,
+    task_status: Optional[str] = Query(None, alias="status"),
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.query(Order).filter(Order.id == order_id).first():
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    q = db.query(CrmTask).filter(CrmTask.order_id == order_id).order_by(
+        CrmTask.deadline.asc().nullslast(),
+        CrmTask.created_at.desc(),
+    )
+    if task_status:
+        q = q.filter(CrmTask.status == task_status)
+    return [_task_to_response(r, db) for r in q.limit(200).all()]
+
+
+@router.post("/orders/{order_id}/tasks", response_model=CrmTaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_order_task(
+    order_id: UUID,
+    body: CrmTaskCreate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.query(Order).filter(Order.id == order_id).first():
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    task = CrmTask(
+        title=body.title.strip(),
+        status=body.status,
+        deadline=body.deadline,
+        order_id=order_id,
         assigned_to_id=body.assigned_to_id,
         creator_id=current_user.id,
     )
@@ -308,6 +429,9 @@ async def update_task(
     if "opportunity_id" in data and data["opportunity_id"] is not None:
         if not db.query(CrmOpportunity).filter(CrmOpportunity.id == data["opportunity_id"]).first():
             raise HTTPException(status_code=400, detail="Лид/сделка не найдена")
+    if "order_id" in data and data["order_id"] is not None:
+        if not db.query(Order).filter(Order.id == data["order_id"]).first():
+            raise HTTPException(status_code=400, detail="Заказ не найден")
     for k, v in data.items():
         setattr(task, k, v)
     task.updated_at = datetime.utcnow()

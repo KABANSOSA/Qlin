@@ -94,7 +94,8 @@ class CrmCommentCreate(BaseModel):
 
 class CrmCommentResponse(BaseModel):
     id: UUID
-    opportunity_id: UUID
+    opportunity_id: Optional[UUID] = None
+    order_id: Optional[UUID] = None
     author_id: Optional[UUID] = None
     author_phone: Optional[str] = None
     body: str
@@ -111,6 +112,7 @@ class CrmTaskCreate(BaseModel):
     status: CrmTaskStatus = "todo"
     deadline: Optional[datetime] = None
     opportunity_id: Optional[UUID] = None
+    order_id: Optional[UUID] = None
     assigned_to_id: Optional[UUID] = None
 
 
@@ -119,6 +121,7 @@ class CrmTaskUpdate(BaseModel):
     status: Optional[CrmTaskStatus] = None
     deadline: Optional[datetime] = None
     opportunity_id: Optional[UUID] = None
+    order_id: Optional[UUID] = None
     assigned_to_id: Optional[UUID] = None
 
 
@@ -129,6 +132,8 @@ class CrmTaskResponse(BaseModel):
     deadline: Optional[datetime] = None
     opportunity_id: Optional[UUID] = None
     opportunity_title: Optional[str] = None
+    order_id: Optional[UUID] = None
+    order_number: Optional[str] = None
     creator_id: Optional[UUID] = None
     creator_phone: Optional[str] = None
     assigned_to_id: Optional[UUID] = None

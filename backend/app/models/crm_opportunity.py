@@ -61,14 +61,16 @@ class CrmOpportunityComment(Base):
     opportunity_id = Column(
         UUID(as_uuid=True),
         ForeignKey("crm_opportunities.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), nullable=True, index=True)
     author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     body = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     opportunity = relationship("CrmOpportunity", back_populates="comments")
+    order = relationship("Order", foreign_keys=[order_id])
     author = relationship("User", foreign_keys=[author_id])
 
 
@@ -86,6 +88,7 @@ class CrmTask(Base):
         nullable=True,
         index=True,
     )
+    order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
     creator_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
@@ -93,5 +96,6 @@ class CrmTask(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     opportunity = relationship("CrmOpportunity", back_populates="tasks")
+    order = relationship("Order", foreign_keys=[order_id])
     creator = relationship("User", foreign_keys=[creator_id])
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
