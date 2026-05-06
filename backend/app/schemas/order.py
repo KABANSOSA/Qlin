@@ -125,3 +125,19 @@ class OrderCostsUpdate(BaseModel):
     supply_cost: Optional[Decimal] = Field(default=None, ge=0)
     other_cost: Optional[Decimal] = Field(default=None, ge=0)
     margin_pct: Optional[Decimal] = Field(default=None, ge=0, le=100)
+
+
+class AdminManualOrderCreate(OrderCreate):
+    """
+    Создание заявки из CRM: те же поля, что и у клиента, плюс телефон (и опционально email) заказчика.
+    Пользователь с таким телефоном создаётся как customer, если ещё нет.
+    """
+
+    customer_phone: str = Field(..., min_length=1, description="Телефон заказчика (как в OTP, +7…)")
+    customer_email: Optional[str] = Field(default=None, max_length=255)
+
+
+class AdminPurgeAllOrdersBody(BaseModel):
+    """Подтверждение опасной операции: удаление всех заявок (только при разрешении в конфиге)."""
+
+    confirm: Literal["purge_all_orders"]

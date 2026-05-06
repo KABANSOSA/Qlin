@@ -1,7 +1,7 @@
 """
 Admin endpoints.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from decimal import Decimal
 from uuid import UUID
 
@@ -22,11 +22,16 @@ from app.schemas.order import (
     OrderCostsUpdate,
     AssignOrderBody,
     AdminSetOrderStatusBody,
+    AdminManualOrderCreate,
+    AdminPurgeAllOrdersBody,
 )
+from app.services.otp_service import normalize_phone
 from app.schemas.cleaner_admin import AdminCreateCleanerBody
 from app.schemas.admin_user import AdminCreateAdminBody
 from app.core.security import get_password_hash
+from app.core.config import settings
 from app.services.order_service import OrderService
+from app.services.order_purge_service import purge_all_orders
 
 router = APIRouter()
 
@@ -67,16 +72,36 @@ _ORDER_LOAD_BASE = (
 )
 
 
-def _order_row_load_only(has_margin: bool):
+def _order_row_load_only(finance_cols: Optional[Dict[str, bool]]):
     cols = list(_ORDER_LOAD_BASE)
     # Не трогаем Order.cleaner_payout на уровне модуля: в старых образах модель Order без этих колонок —
     # иначе AttributeError при импорте admin.py.
-    if has_margin:
+    if finance_cols:
         for name in ("cleaner_payout", "supply_cost", "other_cost"):
-            col = getattr(Order, name, None)
-            if col is not None:
-                cols.append(col)
+            if finance_cols.get(name):
+                col = getattr(Order, name, None)
+                if col is not None:
+                    cols.append(col)
     return load_only(*cols)
+
+
+def _orders_finance_columns(db: Session) -> dict[str, bool]:
+    """
+    Какие поля себестоимости реально есть в БД (частичные миграции / старые проды).
+    Достаточно `cleaner_payout`, чтобы CRM показывала выплату и маржу; supply/other опциональны.
+    """
+    out = {"cleaner_payout": False, "supply_cost": False, "other_cost": False}
+    bind = db.get_bind()
+    if bind is None:
+        return out
+    try:
+        columns = {c["name"] for c in inspect(bind).get_columns("orders")}
+    except Exception:
+        return out
+    for name in out:
+        if name in columns and getattr(Order, name, None) is not None:
+            out[name] = True
+    return out
 
 
 def _orders_supports_margin_fields(db: Session) -> bool:
@@ -84,14 +109,7 @@ def _orders_supports_margin_fields(db: Session) -> bool:
     Backward-compatible guard: some environments may run old schema
     without cost fields on `orders` yet.
     """
-    required = ("cleaner_payout", "supply_cost", "other_cost")
-    if not all(hasattr(Order, field) for field in required):
-        return False
-    bind = db.get_bind()
-    if bind is None:
-        return False
-    columns = {c["name"] for c in inspect(bind).get_columns("orders")}
-    return all(field in columns for field in required)
+    return _orders_finance_columns(db).get("cleaner_payout", False)
 
 
 def _compute_margin(order: Order) -> tuple:
@@ -104,6 +122,61 @@ def _compute_margin(order: Order) -> tuple:
     margin_rub = round(total - costs, 2)
     margin_pct = round((margin_rub / total) * 100, 1) if total else 0.0
     return Decimal(str(margin_rub)), margin_pct
+
+
+def _single_order_admin_response(db: Session, order_id: UUID) -> OrderAdminResponse:
+    """Сборка карточки заказа для CRM (листинг и деталь после PATCH)."""
+    from sqlalchemy.orm import aliased
+
+    has_margin = _orders_supports_margin_fields(db)
+    finance_cols = _orders_finance_columns(db) if has_margin else None
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id)
+        .options(_order_row_load_only(finance_cols))
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заказ не найден")
+
+    CustomerUser = aliased(User)
+    CleanerUser = aliased(User)
+    row = (
+        db.query(CustomerUser.phone, CustomerUser.email, CleanerUser.phone, CleanerUser.first_name)
+        .select_from(Order)
+        .join(CustomerUser, Order.customer_id == CustomerUser.id)
+        .outerjoin(CleanerUser, Order.cleaner_id == CleanerUser.id)
+        .filter(Order.id == order_id)
+        .first()
+    )
+    cust_phone, cust_email, cl_phone, cl_name = row if row else (None, None, None, None)
+    base = OrderResponse.model_validate(order)
+    if has_margin:
+        margin_rub, margin_pct = _compute_margin(order)
+        cleaner_payout = order.cleaner_payout
+        supply_cost = (
+            (order.supply_cost or 0) if finance_cols and finance_cols.get("supply_cost") else Decimal("0")
+        )
+        other_cost = (
+            (order.other_cost or 0) if finance_cols and finance_cols.get("other_cost") else Decimal("0")
+        )
+    else:
+        margin_rub, margin_pct = Decimal("0"), 0.0
+        cleaner_payout = None
+        supply_cost = Decimal("0")
+        other_cost = Decimal("0")
+    return OrderAdminResponse(
+        **base.model_dump(),
+        customer_phone=cust_phone,
+        customer_email=cust_email,
+        cleaner_phone=cl_phone,
+        cleaner_name=cl_name,
+        cleaner_payout=cleaner_payout,
+        supply_cost=supply_cost,
+        other_cost=other_cost,
+        margin_rub=margin_rub,
+        margin_pct=margin_pct,
+    )
 
 
 @router.get("/orders", response_model=List[OrderAdminResponse])
@@ -121,6 +194,7 @@ async def get_all_orders(
     CleanerUser = aliased(User)
 
     has_margin = _orders_supports_margin_fields(db)
+    finance_cols = _orders_finance_columns(db) if has_margin else None
 
     query = (
         db.query(
@@ -132,7 +206,7 @@ async def get_all_orders(
         )
         .join(CustomerUser, Order.customer_id == CustomerUser.id)
         .outerjoin(CleanerUser, Order.cleaner_id == CleanerUser.id)
-        .options(_order_row_load_only(has_margin))
+        .options(_order_row_load_only(finance_cols))
     )
     if status:
         query = query.filter(Order.status == status)
@@ -144,8 +218,12 @@ async def get_all_orders(
         if has_margin:
             margin_rub, margin_pct = _compute_margin(order)
             cleaner_payout = order.cleaner_payout
-            supply_cost = order.supply_cost or 0
-            other_cost = order.other_cost or 0
+            supply_cost = (
+                (order.supply_cost or 0) if finance_cols and finance_cols.get("supply_cost") else Decimal("0")
+            )
+            other_cost = (
+                (order.other_cost or 0) if finance_cols and finance_cols.get("other_cost") else Decimal("0")
+            )
         else:
             margin_rub, margin_pct = Decimal("0"), 0.0
             cleaner_payout = None
@@ -166,6 +244,107 @@ async def get_all_orders(
             )
         )
     return out
+
+
+@router.post("/orders", response_model=OrderAdminResponse, status_code=status.HTTP_201_CREATED)
+async def admin_create_manual_order(
+    body: AdminManualOrderCreate,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Ручное создание заявки из CRM: заказчик определяется по телефону
+    (профиль customer создаётся автоматически при отсутствии номера в базе).
+    """
+    try:
+        phone = normalize_phone(body.customer_phone)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+
+    customer_user = db.query(User).filter(User.phone == phone).first()
+    email_clean = body.customer_email.strip() if body.customer_email and body.customer_email.strip() else None
+
+    if customer_user:
+        if customer_user.role != "customer":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Номер уже привязан к пользователю с ролью «{customer_user.role}». "
+                    "Укажите другой телефон или работайте с этим пользователем через его аккаунт."
+                ),
+            )
+        if email_clean and customer_user.email != email_clean:
+            taken = (
+                db.query(User.id)
+                .filter(User.email == email_clean, User.id != customer_user.id)
+                .first()
+            )
+            if taken:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Этот email уже занят другим пользователем",
+                )
+            customer_user.email = email_clean
+            try:
+                db.commit()
+                db.refresh(customer_user)
+            except IntegrityError:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось сохранить email (конфликт)",
+                ) from None
+    else:
+        customer_user = User(phone=phone, role="customer", is_active=True, email=email_clean)
+        db.add(customer_user)
+        try:
+            db.commit()
+            db.refresh(customer_user)
+        except IntegrityError:
+            db.rollback()
+            customer_user = db.query(User).filter(User.phone == phone).first()
+            if not customer_user or customer_user.role != "customer":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось создать профиль клиента (конфликт данных)",
+                )
+
+    order_payload = body.model_dump(exclude={"customer_phone", "customer_email"})
+    try:
+        order = OrderService.create_order(
+            db=db,
+            customer_id=customer_user.id,
+            order_data=order_payload,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    return _single_order_admin_response(db, order.id)
+
+
+@router.post("/orders/purge-all", response_model=dict)
+async def admin_purge_all_orders(
+    _body: AdminPurgeAllOrdersBody,
+    _admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Удалить все заявки и связанные платежи/оценки (стенд или явное ALLOW_PURGE_ALL_ORDERS).
+
+    Тело: {"confirm": "purge_all_orders"}
+    """
+    if not settings.DEBUG and not settings.ALLOW_PURGE_ALL_ORDERS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Очистка заявок отключена. Для стенда задайте ALLOW_PURGE_ALL_ORDERS=true или DEBUG=true.",
+        )
+    try:
+        stats = purge_all_orders(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"status": "ok", **stats}
 
 
 @router.get("/cleaners", response_model=List[dict])
@@ -291,13 +470,12 @@ async def admin_update_order_costs(
     db: Session = Depends(get_db),
 ):
     """Ручная корректировка себестоимости заказа (выплата клинеру, расходники, прочее)."""
-    from sqlalchemy.orm import aliased
-
     has_margin = _orders_supports_margin_fields(db)
+    finance_cols = _orders_finance_columns(db) if has_margin else None
     order = (
         db.query(Order)
         .filter(Order.id == order_id)
-        .options(_order_row_load_only(has_margin))
+        .options(_order_row_load_only(finance_cols))
         .first()
     )
     if not order:
@@ -305,13 +483,31 @@ async def admin_update_order_costs(
 
     if has_margin:
         if body.supply_cost is not None:
+            if not finance_cols or not finance_cols.get("supply_cost"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Колонка supply_cost отсутствует в БД — обновите миграции",
+                )
             order.supply_cost = body.supply_cost
         if body.other_cost is not None:
+            if not finance_cols or not finance_cols.get("other_cost"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Колонка other_cost отсутствует в БД — обновите миграции",
+                )
             order.other_cost = body.other_cost
         if body.margin_pct is not None:
             total = Decimal(str(order.total_price or 0))
-            supply = Decimal(str(order.supply_cost or 0))
-            other = Decimal(str(order.other_cost or 0))
+            supply = (
+                Decimal(str(order.supply_cost or 0))
+                if finance_cols and finance_cols.get("supply_cost")
+                else Decimal("0")
+            )
+            other = (
+                Decimal(str(order.other_cost or 0))
+                if finance_cols and finance_cols.get("other_cost")
+                else Decimal("0")
+            )
             target_margin = (total * body.margin_pct / Decimal("100")).quantize(Decimal("0.01"))
             order.cleaner_payout = max(Decimal("0"), total - target_margin - supply - other)
         elif body.cleaner_payout is not None:
@@ -321,40 +517,7 @@ async def admin_update_order_costs(
     if has_margin:
         db.refresh(order)
 
-    CustomerUser = aliased(User)
-    CleanerUser = aliased(User)
-    row = (
-        db.query(CustomerUser.phone, CustomerUser.email, CleanerUser.phone, CleanerUser.first_name)
-        .select_from(Order)
-        .join(CustomerUser, Order.customer_id == CustomerUser.id)
-        .outerjoin(CleanerUser, Order.cleaner_id == CleanerUser.id)
-        .filter(Order.id == order_id)
-        .first()
-    )
-    cust_phone, cust_email, cl_phone, cl_name = row if row else (None, None, None, None)
-    base = OrderResponse.model_validate(order)
-    if has_margin:
-        margin_rub, margin_pct = _compute_margin(order)
-        cleaner_payout = order.cleaner_payout
-        supply_cost = order.supply_cost or 0
-        other_cost = order.other_cost or 0
-    else:
-        margin_rub, margin_pct = Decimal("0"), 0.0
-        cleaner_payout = None
-        supply_cost = Decimal("0")
-        other_cost = Decimal("0")
-    return OrderAdminResponse(
-        **base.model_dump(),
-        customer_phone=cust_phone,
-        customer_email=cust_email,
-        cleaner_phone=cl_phone,
-        cleaner_name=cl_name,
-        cleaner_payout=cleaner_payout,
-        supply_cost=supply_cost,
-        other_cost=other_cost,
-        margin_rub=margin_rub,
-        margin_pct=margin_pct,
-    )
+    return _single_order_admin_response(db, order_id)
 
 
 @router.get("/stats", response_model=Dict[str, Any])
@@ -428,24 +591,27 @@ async def get_admin_stats(
     month_margin_rub = 0.0
     month_margin_pct = 0.0
 
-    if _orders_supports_margin_fields(db):
+    finance_cols = _orders_finance_columns(db)
+    if finance_cols.get("cleaner_payout"):
         total_payout = (
             db.query(func.coalesce(func.sum(Order.cleaner_payout), 0))
             .filter(Order.status.notin_(["cancelled"]))
             .scalar()
         ) or Decimal("0")
 
-        total_supply = (
-            db.query(func.coalesce(func.sum(Order.supply_cost), 0))
-            .filter(Order.status.notin_(["cancelled"]))
-            .scalar()
-        ) or Decimal("0")
+        if finance_cols.get("supply_cost"):
+            total_supply = (
+                db.query(func.coalesce(func.sum(Order.supply_cost), 0))
+                .filter(Order.status.notin_(["cancelled"]))
+                .scalar()
+            ) or Decimal("0")
 
-        total_other = (
-            db.query(func.coalesce(func.sum(Order.other_cost), 0))
-            .filter(Order.status.notin_(["cancelled"]))
-            .scalar()
-        ) or Decimal("0")
+        if finance_cols.get("other_cost"):
+            total_other = (
+                db.query(func.coalesce(func.sum(Order.other_cost), 0))
+                .filter(Order.status.notin_(["cancelled"]))
+                .scalar()
+            ) or Decimal("0")
 
         total_revenue_all = (
             db.query(func.coalesce(func.sum(Order.total_price), 0))
@@ -473,17 +639,21 @@ async def get_admin_stats(
             .scalar()
         ) or Decimal("0")
 
-        margin_this_month_supply = (
-            db.query(func.coalesce(func.sum(Order.supply_cost), 0))
-            .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
-            .scalar()
-        ) or Decimal("0")
+        margin_this_month_supply = Decimal("0")
+        if finance_cols.get("supply_cost"):
+            margin_this_month_supply = (
+                db.query(func.coalesce(func.sum(Order.supply_cost), 0))
+                .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
+                .scalar()
+            ) or Decimal("0")
 
-        margin_this_month_other = (
-            db.query(func.coalesce(func.sum(Order.other_cost), 0))
-            .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
-            .scalar()
-        ) or Decimal("0")
+        margin_this_month_other = Decimal("0")
+        if finance_cols.get("other_cost"):
+            margin_this_month_other = (
+                db.query(func.coalesce(func.sum(Order.other_cost), 0))
+                .filter(Order.status.notin_(["cancelled"]), Order.created_at >= month_start)
+                .scalar()
+            ) or Decimal("0")
 
         month_costs = float(margin_this_month_payout) + float(margin_this_month_supply) + float(margin_this_month_other)
         month_margin_rub = float(margin_this_month_rev) - month_costs

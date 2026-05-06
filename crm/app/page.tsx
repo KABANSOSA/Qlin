@@ -15,6 +15,7 @@ import {
   Kanban,
   Percent,
   PiggyBank,
+  Plus,
   TrendingUp,
   Users,
 } from 'lucide-react'
@@ -158,13 +159,20 @@ export default function CrmDashboardPage() {
   return (
     <CrmShell mePhone={user.phone} onRefresh={() => refetch()} isFetching={isFetching}>
       <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Обзор</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {format(new Date(), 'EEEE, d MMMM yyyy', { locale: ru })}
             </p>
           </div>
+          <Link
+            href="/orders/new"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-brand px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-hover"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Новая заявка
+          </Link>
         </div>
 
         {statsError && (

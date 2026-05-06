@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -117,6 +119,7 @@ function marginColor(pct: number | null | undefined): string {
 }
 
 export default function CrmOrdersPage() {
+  const router = useRouter()
   const { loading, user, error, retry } = useCrmAccess()
   const qc = useQueryClient()
 
@@ -255,13 +258,26 @@ export default function CrmOrdersPage() {
   }
 
   return (
-    <CrmShell mePhone={user.phone} onRefresh={() => refetch()} isFetching={isFetching}>
+    <CrmShell
+      mePhone={user.phone}
+      onRefresh={() => refetch()}
+      isFetching={isFetching}
+      createAction={{ label: 'Новая заявка', onClick: () => router.push('/orders/new') }}
+    >
       <main className="mx-auto max-w-[1600px] px-4 py-6">
-        <div className="mb-4">
-          <h1 className="text-lg font-bold tracking-tight text-foreground">Заявки</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Для «Ожидает» назначьте клинера — заказ перейдёт в «Назначен».
-          </p>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-foreground">Заявки</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Для «Ожидает» назначьте клинера — заказ перейдёт в «Назначен».
+            </p>
+          </div>
+          <Link
+            href="/orders/new"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md bg-brand px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-hover"
+          >
+            + Новая заявка
+          </Link>
         </div>
 
         {/* Status tabs */}
