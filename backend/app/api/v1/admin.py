@@ -31,7 +31,7 @@ from app.schemas.admin_user import AdminCreateAdminBody
 from app.core.security import get_password_hash
 from app.core.config import settings
 from app.services.order_service import OrderService
-from app.services.order_purge_service import purge_all_orders
+from app.services.order_purge_service import purge_all_orders, delete_single_order
 
 router = APIRouter()
 
@@ -345,6 +345,27 @@ async def admin_purge_all_orders(
         db.rollback()
         raise
     return {"status": "ok", **stats}
+
+
+@router.delete("/orders/{order_id}", response_model=dict)
+async def admin_delete_order(
+    order_id: UUID,
+    _admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Удалить одну заявку (платежи, оценка, уведомления; необратимо)."""
+    try:
+        stats = delete_single_order(db, order_id)
+        if not stats.get("deleted"):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заказ не найден")
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
+    return {"status": "ok", "order_number": stats["order_number"]}
 
 
 @router.get("/cleaners", response_model=List[dict])

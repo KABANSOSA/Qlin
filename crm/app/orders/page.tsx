@@ -13,6 +13,7 @@ import {
   Phone,
   Search,
   Sparkles,
+  Trash2,
   User2,
   X,
 } from 'lucide-react'
@@ -253,6 +254,24 @@ export default function CrmOrdersPage() {
     },
   })
 
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      await api.delete(`/admin/orders/${orderId}`)
+    },
+    onSuccess: () => {
+      setDetailId(null)
+      qc.invalidateQueries({ queryKey: ['admin-orders'] })
+      qc.invalidateQueries({ queryKey: ['admin-order-comments'] })
+      qc.invalidateQueries({ queryKey: ['admin-order-tasks'] })
+      qc.invalidateQueries({ queryKey: ['admin-orders-pipeline'] })
+      refetch()
+    },
+    onError: (err: unknown) => {
+      const ax = err as { response?: { data?: { detail?: string } } }
+      window.alert(ax.response?.data?.detail || 'Не удалось удалить заявку')
+    },
+  })
+
   if (loading || error || !user) {
     return <CrmAccessBarrier loading={loading} user={user} error={error} retry={retry} />
   }
@@ -436,6 +455,19 @@ export default function CrmOrdersPage() {
               <a href={getPublicOrderUrl(detail.id)} target="_blank" rel="noopener noreferrer" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted" title="На сайте">
                 <ExternalLink className="h-4 w-4" />
               </a>
+              <button
+                type="button"
+                disabled={deleteOrderMutation.isPending}
+                onClick={() => {
+                  if (!window.confirm(`Удалить заявку ${detail.order_number} безвозвратно? Платежи и данные по заказу будут удалены.`)) return
+                  deleteOrderMutation.mutate(detail.id)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                title="Удалить заявку"
+              >
+                <Trash2 className="h-4 w-4" />
+                Удалить
+              </button>
               <button type="button" onClick={() => setDetailId(null)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
                 <X className="h-5 w-5" />
               </button>
