@@ -27,7 +27,7 @@ class OrderCreate(BaseModel):
     special_instructions: Optional[str] = None
     extra_services: Optional[dict] = Field(
         default=None,
-        description="Доп. услуги: fridge,microwave,oven,balcony_with_windows,balcony_without_windows,windows,dishes,ironing,bedding_sets",
+        description="Доп. услуги: fridge,microwave,oven,balcony_with_windows,balcony_without_windows,cleaner_supplies,windows,dishes,ironing,bedding_sets",
     )
     scheduled_at: datetime
     service_city: Optional[Literal["khabarovsk", "yuzhno_sakhalinsk"]] = Field(

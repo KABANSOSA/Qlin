@@ -41,21 +41,23 @@ class PricingService:
         extra_services: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Decimal]:
         """
-        Расчёт по публичным правилам (база 3 300 ₽ до 50 м², +30 ₽/м² свыше 50).
+        Расчёт по публичным правилам (база 3 500 ₽ до 50 м², +30 ₽/м² свыше 50).
         Без площади — оценка rooms_count × 25 м² (как на фронте).
 
         zone_id: зона должна существовать (привязка заказа); на сумму не влияет.
-        cleaning_type: пока не влияет на сумму (единый публичный тариф для всех типов в форме).
+        cleaning_type: deep (генеральная) — ×2 только к базовому тарифу по площади; доп. услуги не умножаются.
 
         Returns:
-            dict with base_price, extra_services_price, discount, total_price
+            dict with base_price (итоговая «база» с учётом типа: для deep = тариф×2), extra_services_price, discount, total_price
         """
         zone = db.query(Zone).filter(Zone.id == zone_id).first()
         if not zone:
             raise ValueError("Zone not found")
 
         area = PricingService._effective_area_sqm(area_sqm, rooms_count)
-        base_price = PricingService._public_tariff_base(area).quantize(Decimal("0.01"))
+        base_tariff = PricingService._public_tariff_base(area).quantize(Decimal("0.01"))
+        deep_mult = Decimal("2") if cleaning_type == "deep" else Decimal("1")
+        base_price = (base_tariff * deep_mult).quantize(Decimal("0.01"))
 
         extra_services_price = Decimal("0")
         if bathrooms_count > 1:
@@ -90,6 +92,8 @@ class PricingService:
             extra_services_price += Decimal("1000")
         if as_bool("balcony_without_windows"):
             extra_services_price += Decimal("500")
+        if as_bool("cleaner_supplies"):
+            extra_services_price += Decimal("200")
 
         extra_services_price += Decimal("150") * as_int("windows")
 

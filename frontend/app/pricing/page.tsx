@@ -59,12 +59,12 @@ export default function PricingPage() {
                 </div>
                 <div>
                   <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-primary">Базовый тариф</p>
-                  <CardTitle className="mt-1 text-2xl md:text-3xl">Базовая уборка квартиры</CardTitle>
+                  <CardTitle className="mt-1 text-2xl md:text-3xl">Поддерживающая уборка квартиры</CardTitle>
                   <CardDescription className="mt-2 text-base">До 50 м² — фиксированная база</CardDescription>
                 </div>
               </div>
               <div className="text-left md:text-right">
-                <p className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl md:leading-none">3 300 ₽</p>
+                <p className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl md:leading-none">3 500 ₽</p>
                 <p className="text-sm text-muted-foreground">включая стандартный перечень работ</p>
               </div>
             </div>
@@ -115,6 +115,7 @@ export default function PricingPage() {
               { icon: Droplet, title: 'Помыть холодильник', unit: 'фикс', price: '500 ₽', desc: 'Дополнительно к базовой уборке' },
               { icon: Droplet, title: 'Помыть СВЧ', unit: 'фикс', price: '300 ₽', desc: 'Чистка внутри и снаружи' },
               { icon: Droplet, title: 'Помыть духовку', unit: 'фикс', price: '300 ₽', desc: 'Удаление загрязнений внутри' },
+              { icon: Sparkles, title: 'Уборка средствами клинера', unit: 'фикс', price: '200 ₽', desc: 'Моющие и чистящие средства предоставляет клинер' },
               { icon: Home, title: 'Балкон с окнами', unit: 'фикс', price: '1 000 ₽', desc: 'Полная уборка балкона с мойкой окон' },
               { icon: Home, title: 'Балкон без окон', unit: 'фикс', price: '500 ₽', desc: 'Уборка балкона без мойки окон' },
               { icon: Square, title: 'Мойка окон', unit: 'за 1 окно', price: '150 ₽', desc: 'Поштучно' },
@@ -156,14 +157,15 @@ export default function PricingPage() {
           </CardHeader>
           <CardContent className="space-y-4 px-8 pb-8 pt-0 md:px-10 md:pb-10">
             {[
-              { n: '1', title: 'База', body: 'Квартиры до 50 м² — 3 300 ₽ по текущему прайсу.' },
+              { n: '1', title: 'База', body: 'Квартиры до 50 м² — 3 500 ₽ по текущему прайсу.' },
               {
                 n: '2',
                 title: 'Площадь',
                 body: 'Свыше 50 м² добавляется 30 ₽ за каждый лишний м².',
-                extra: 'Пример: 65 м² → 3 300 ₽ + (15 × 30 ₽) = 3 750 ₽',
+                extra: 'Пример: 65 м² → 3 500 ₽ + (15 × 30 ₽) = 3 950 ₽',
               },
-              { n: '3', title: 'Опции', body: 'Дополнительные услуги суммируются к базе, если вы их включили.' },
+              { n: '3', title: 'Тип уборки', body: 'Генеральная: базовый тариф по площади ×2; дополнительные услуги считаются без удвоения.' },
+              { n: '4', title: 'Опции', body: 'Дополнительные услуги суммируются к базе, если вы их включили.' },
             ].map((step) => (
               <div
                 key={step.n}

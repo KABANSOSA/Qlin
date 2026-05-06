@@ -309,7 +309,7 @@ export default function CrmNewOrderPage() {
                   className="w-full rounded-md border border-border bg-[#f5f6f8] px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/25"
                 >
                   <option value="regular">Поддерживающая</option>
-                  <option value="deep">Генеральная (×2 к сумме)</option>
+                  <option value="deep">Генеральная (×2 к базе по площади)</option>
                 </select>
               </label>
               <label className="block text-sm">

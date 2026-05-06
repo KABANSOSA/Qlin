@@ -23,7 +23,17 @@ const orderSchema = z.object({
   cleaning_type: z.string().min(1, 'Выберите тип уборки'),
   rooms_count: z.number().min(1).max(10),
   bathrooms_count: z.number().min(0).max(5),
-  area_sqm: z.union([z.string(), z.number()]).optional().transform((v) => (v === '' || v == null ? undefined : Number(v))),
+  area_sqm: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : Number(v)),
+    z
+      .number({
+        required_error: 'Укажите площадь квартиры',
+        invalid_type_error: 'Укажите площадь квартиры',
+      })
+      .min(1, 'Площадь должна быть больше 0 м²')
+      .max(500, 'Площадь не должна превышать 500 м²'),
+  ),
+  payment_method: z.enum(['cash', 'transfer']),
   scheduled_at: z.string().min(1, 'Укажите дату и время визита'),
   special_instructions: z.string().optional(),
 })
@@ -60,6 +70,7 @@ type ExtraServices = {
   oven: boolean
   balcony_with_windows: boolean
   balcony_without_windows: boolean
+  cleaner_supplies: boolean
   windows: number
   dishes: number
   ironing: number
@@ -72,6 +83,7 @@ const DEFAULT_EXTRA_SERVICES: ExtraServices = {
   oven: false,
   balcony_with_windows: false,
   balcony_without_windows: false,
+  cleaner_supplies: false,
   windows: 0,
   dishes: 0,
   ironing: 0,
@@ -88,6 +100,8 @@ function NewOrderPageContent() {
   const [selectedCity, setSelectedCity] = useState<string>('')
   const [schedDate, setSchedDate] = useState('')
   const [schedTime, setSchedTime] = useState('10:00')
+  const [selectedCleaningType, setSelectedCleaningType] = useState('regular')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash')
   const geocodeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isGeocodingRef = useRef(false)
   const {
@@ -103,6 +117,7 @@ function NewOrderPageContent() {
       bathrooms_count: 1,
       cleaning_type: 'regular',
       address: '',
+      payment_method: 'cash',
     },
   })
 
@@ -114,15 +129,22 @@ function NewOrderPageContent() {
       ? Number(areaSqmRaw)
       : undefined
 
-  // Расчёт по тарифам со страницы «Цены»: база 3 300 ₽ до 50 м², +30 ₽/м² свыше 50
+  // Расчёт по тарифам со страницы «Цены»: база 3 500 ₽ до 50 м², +30 ₽/м² свыше 50
   const calculatePrice = () => {
-    const BASE_PRICE = 3300
+    if (areaSqmNum == null || areaSqmNum <= 0) {
+      setPrice(null)
+      return
+    }
+
+    const BASE_PRICE = 3500
     const AREA_THRESHOLD = 50
     const PRICE_PER_EXTRA_SQM = 30
-    const area = (areaSqmNum != null && areaSqmNum > 0) ? areaSqmNum : (roomsCount * 25) // примерная площадь по комнатам, если не указана
+    const area = areaSqmNum
     const baseCalculated = area <= AREA_THRESHOLD
       ? BASE_PRICE
       : BASE_PRICE + (area - AREA_THRESHOLD) * PRICE_PER_EXTRA_SQM
+
+    const chargedBase = selectedCleaningType === 'deep' ? baseCalculated * 2 : baseCalculated
 
     let extrasCalculated = 0
     if (bathroomsCount > 1) extrasCalculated += (bathroomsCount - 1) * 500
@@ -131,17 +153,19 @@ function NewOrderPageContent() {
     if (extraServices.oven) extrasCalculated += 300
     if (extraServices.balcony_with_windows) extrasCalculated += 1000
     if (extraServices.balcony_without_windows) extrasCalculated += 500
+    if (extraServices.cleaner_supplies) extrasCalculated += 200
     extrasCalculated += Math.max(0, extraServices.windows) * 150
     extrasCalculated += Math.max(0, extraServices.dishes - 10) * 10
     extrasCalculated += Math.max(0, extraServices.ironing) * 70
     extrasCalculated += Math.max(0, extraServices.bedding_sets) * 200
 
-    setPrice(Math.round(baseCalculated + extrasCalculated))
+    const total = chargedBase + extrasCalculated
+    setPrice(Math.round(total))
   }
 
   useEffect(() => {
     calculatePrice()
-  }, [roomsCount, bathroomsCount, areaSqmNum, extraServices])
+  }, [roomsCount, bathroomsCount, areaSqmNum, extraServices, selectedCleaningType])
 
   // Удобный слот по умолчанию: завтра, 10:00 (локальное время)
   useEffect(() => {
@@ -203,6 +227,7 @@ function NewOrderPageContent() {
       if (extraServices.oven) extrasLines.push('Помыть духовку (+300 ₽)')
       if (extraServices.balcony_with_windows) extrasLines.push('Убрать балкон (с окнами) (+1000 ₽)')
       if (extraServices.balcony_without_windows) extrasLines.push('Убрать балкон (без окон) (+500 ₽)')
+      if (extraServices.cleaner_supplies) extrasLines.push('Уборка средствами клинера (+200 ₽)')
       if (extraServices.windows > 0) extrasLines.push(`Окна: ${extraServices.windows} шт. (+${extraServices.windows * 150} ₽)`)
       if (extraServices.dishes > 0) {
         const paid = Math.max(0, extraServices.dishes - 10)
@@ -220,11 +245,13 @@ function NewOrderPageContent() {
       // zone_id-заглушка: бэкенд подставит зону (по service_city или первую активную)
       const orderData = {
         ...data,
+        cleaning_type: selectedCleaningType,
         scheduled_at: scheduledAtIso,
         zone_id: '00000000-0000-0000-0000-000000000000',
         has_pets: false,
         has_balcony: false,
         extra_services: extraServices,
+        payment_method: paymentMethod,
         special_instructions: mergedInstructions || undefined,
         address_lat: addressCoordinates.lat,
         address_lon: addressCoordinates.lon,
@@ -302,11 +329,8 @@ function NewOrderPageContent() {
           </CardHeader>
           <CardContent className="space-y-6 p-6 md:p-8">
             <div className="mb-4">
-              <label htmlFor="city" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+              <label htmlFor="city" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <MapPin className="h-4 w-4 text-primary" aria-hidden />
                 Город *
               </label>
               <CitySelector
@@ -322,11 +346,8 @@ function NewOrderPageContent() {
             </div>
 
             <div>
-              <label htmlFor="address" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+              <label htmlFor="address" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <MapPin className="h-4 w-4 text-primary" aria-hidden />
                 Адрес *
               </label>
               <AddressSelector
@@ -405,8 +426,8 @@ function NewOrderPageContent() {
             </div>
 
             <div>
-              <label htmlFor="apartment" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <label htmlFor="apartment" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <svg className="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
                 Квартира
@@ -414,7 +435,7 @@ function NewOrderPageContent() {
               <Input
                 id="apartment"
                 placeholder="12"
-                className="h-12 text-base border-2 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200"
+                className="h-12 text-base"
                 {...register('apartment')}
               />
             </div>
@@ -428,8 +449,8 @@ function NewOrderPageContent() {
           </CardHeader>
           <CardContent className="space-y-6 p-6 md:p-8">
             <div>
-              <label htmlFor="cleaning_type" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <label htmlFor="cleaning_type" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 Тип уборки *
@@ -438,15 +459,19 @@ function NewOrderPageContent() {
                 <select
                   id="cleaning_type"
                   className="h-11 w-full cursor-pointer appearance-none rounded-xl border border-input bg-background px-4 py-2 pr-10 text-sm font-medium shadow-sm transition-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  {...register('cleaning_type')}
+                  value={selectedCleaningType}
+                  onChange={(e) => {
+                    setSelectedCleaningType(e.target.value)
+                    setValue('cleaning_type', e.target.value, { shouldValidate: true })
+                  }}
                 >
-                  <option value="regular">Обычная уборка</option>
+                  <option value="regular">Поддерживающая уборка</option>
                   <option value="deep">Генеральная уборка</option>
                   <option value="move_in">Уборка после ремонта</option>
                   <option value="move_out">Уборка перед выездом</option>
                 </select>
-                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none transition-transform duration-200 group-hover:scale-110">
-                  <svg className="h-5 w-5 text-gray-500 group-hover:text-purple-600 transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 group-hover:scale-110">
+                  <svg className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -463,8 +488,8 @@ function NewOrderPageContent() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="rooms_count" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <label htmlFor="rooms_count" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
                   Комнат *
@@ -474,7 +499,7 @@ function NewOrderPageContent() {
                   type="number"
                   min="1"
                   max="10"
-                  className="h-12 text-base border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200"
+                  className="h-12 text-base"
                   {...register('rooms_count', { valueAsNumber: true })}
                 />
                 {errors.rooms_count && (
@@ -485,8 +510,8 @@ function NewOrderPageContent() {
               </div>
 
               <div>
-                <label htmlFor="bathrooms_count" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                  <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <label htmlFor="bathrooms_count" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
                   </svg>
                   Санузлов *
@@ -496,7 +521,7 @@ function NewOrderPageContent() {
                   type="number"
                   min="0"
                   max="5"
-                  className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                  className="h-12 text-base"
                   {...register('bathrooms_count', { valueAsNumber: true })}
                 />
                 {errors.bathrooms_count && (
@@ -508,11 +533,11 @@ function NewOrderPageContent() {
             </div>
 
             <div>
-              <label htmlFor="area_sqm" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <label htmlFor="area_sqm" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <svg className="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                 </svg>
-                Площадь, м² <span className="text-gray-400 font-normal">(необязательно, для точного расчёта)</span>
+                Площадь, м² *
               </label>
               <Input
                 id="area_sqm"
@@ -520,34 +545,60 @@ function NewOrderPageContent() {
                 min={1}
                 max={500}
                 placeholder="Например 65"
-                className="h-12 text-base border-2 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 transition-all duration-200"
+                className="h-12 text-base"
                 {...register('area_sqm')}
               />
+              {errors.area_sqm && (
+                <p className="text-xs text-destructive mt-1.5">
+                  {errors.area_sqm.message}
+                </p>
+              )}
             </div>
 
             <div className="rounded-2xl border border-border/70 bg-surface-muted/40 p-4 md:p-5">
               <h3 className="text-sm font-semibold text-foreground">Дополнительные услуги</h3>
               <p className="mt-1 text-xs text-muted-foreground">Добавьте нужные позиции — они учитываются в расчёте цены.</p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="mt-4 grid gap-2 md:grid-cols-2">
                 {[
                   { key: 'fridge', label: 'Помыть холодильник', price: 500 },
                   { key: 'microwave', label: 'Помыть СВЧ', price: 300 },
                   { key: 'oven', label: 'Помыть духовку', price: 300 },
                   { key: 'balcony_with_windows', label: 'Убрать балкон (с окнами)', price: 1000 },
                   { key: 'balcony_without_windows', label: 'Убрать балкон (без окон)', price: 500 },
-                ].map((item) => (
-                  <label key={item.key} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={extraServices[item.key as keyof ExtraServices] as boolean}
-                      onChange={(e) =>
-                        setExtraServices((prev) => ({ ...prev, [item.key]: e.target.checked }))
-                      }
-                    />
-                    <span className="flex-1">{item.label}</span>
-                    <span className="font-medium">+{item.price} ₽</span>
-                  </label>
-                ))}
+                  { key: 'cleaner_supplies', label: 'Уборка средствами клинера', price: 200 },
+                ].map((item) => {
+                  const checked = extraServices[item.key as keyof ExtraServices] as boolean
+                  return (
+                    <label
+                      key={item.key}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-all duration-200 ${
+                        checked
+                          ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
+                          : 'border-border/70 hover:border-border hover:bg-surface-muted/30'
+                      }`}
+                    >
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors duration-200 ${
+                        checked ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30'
+                      }`}>
+                        {checked && (
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={checked}
+                        onChange={(e) =>
+                          setExtraServices((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                        }
+                      />
+                      <span className="flex-1 font-medium">{item.label}</span>
+                      <span className="text-xs font-semibold tabular-nums text-muted-foreground">+{item.price} ₽</span>
+                    </label>
+                  )
+                })}
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label className="text-xs text-muted-foreground">
@@ -601,6 +652,55 @@ function NewOrderPageContent() {
               </div>
             </div>
 
+            <div className="rounded-2xl border border-border/70 bg-surface-muted/40 p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-foreground">Способ оплаты</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Выберите, как удобно оплатить после уборки.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-sm transition-colors ${
+                  paymentMethod === 'cash'
+                    ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
+                    : 'border-border/70 bg-background hover:bg-surface-muted/30'
+                }`}>
+                  <input
+                    type="radio"
+                    value="cash"
+                    className="mt-1"
+                    checked={paymentMethod === 'cash'}
+                    onChange={() => {
+                      setPaymentMethod('cash')
+                      setValue('payment_method', 'cash', { shouldValidate: true })
+                    }}
+                  />
+                  <span>
+                    <span className="block font-semibold text-foreground">Наличными</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Оплата клинеру после завершения уборки.</span>
+                  </span>
+                </label>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-sm transition-colors ${
+                  paymentMethod === 'transfer'
+                    ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
+                    : 'border-border/70 bg-background hover:bg-surface-muted/30'
+                }`}>
+                  <input
+                    type="radio"
+                    value="transfer"
+                    className="mt-1"
+                    checked={paymentMethod === 'transfer'}
+                    onChange={() => {
+                      setPaymentMethod('transfer')
+                      setValue('payment_method', 'transfer', { shouldValidate: true })
+                    }}
+                  />
+                  <span>
+                    <span className="block font-semibold text-foreground">Переводом</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Оплата переводом после уборки.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             {price && (
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 md:p-8">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ориентировочная сумма</p>
@@ -625,8 +725,8 @@ function NewOrderPageContent() {
           </CardHeader>
           <CardContent className="space-y-6 p-6 md:p-8">
               <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <label className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   Когда приехать *
@@ -643,7 +743,7 @@ function NewOrderPageContent() {
                       id="sched_date"
                       type="date"
                       min={formatLocalDate(new Date())}
-                      className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                      className="h-12 text-base"
                       value={schedDate}
                       onChange={(e) => setSchedDate(e.target.value)}
                     />
@@ -656,7 +756,7 @@ function NewOrderPageContent() {
                       id="sched_time"
                       type="time"
                       step={600}
-                      className="h-12 text-base border-2 focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200"
+                      className="h-12 text-base"
                       value={schedTime}
                       onChange={(e) => setSchedTime(e.target.value)}
                     />
@@ -674,8 +774,8 @@ function NewOrderPageContent() {
             </div>
 
             <div>
-              <label htmlFor="special_instructions" className="block text-sm font-semibold mb-2.5 text-gray-700 flex items-center gap-2">
-                <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <label htmlFor="special_instructions" className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <svg className="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Особые указания
@@ -684,7 +784,7 @@ function NewOrderPageContent() {
                 id="special_instructions"
                 placeholder="Дополнительная информация для уборщика..."
                 rows={5}
-                className="border-2 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 transition-all duration-200 text-base resize-none"
+                className="text-base resize-none"
                 {...register('special_instructions')}
               />
             </div>
