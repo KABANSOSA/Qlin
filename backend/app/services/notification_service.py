@@ -18,6 +18,40 @@ class NotificationService:
     """Service for sending notifications."""
 
     @staticmethod
+    def notify_dispatch_new_order(db: Session, order: Order, source: str = "site") -> None:
+        """
+        Telegram офису/диспетчеру при любом новом заказе (сайт или CRM).
+        Задайте DISPATCH_TELEGRAM_CHAT_IDS в .env — через запятую (личный чат или группа).
+        """
+        raw = (settings.DISPATCH_TELEGRAM_CHAT_IDS or "").strip()
+        if not raw:
+            return
+        chat_ids: list[int] = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                chat_ids.append(int(part))
+            except ValueError:
+                logging.warning("DISPATCH_TELEGRAM_CHAT_IDS: пропуск нечислового фрагмента %r", part)
+        if not chat_ids:
+            return
+        src = "CRM" if source == "crm" else "Сайт"
+        addr = (order.address or "").strip()
+        if len(addr) > 200:
+            addr = addr[:197] + "…"
+        total = getattr(order, "total_price", None)
+        total_s = f"\nСумма: {total} ₽" if total is not None else ""
+        text = f"📋 Новый заказ ({src})\n#{order.order_number}\n{addr}{total_s}"
+        for cid in chat_ids:
+            ok = NotificationService._send_telegram_message(chat_id=cid, text=text)
+            if ok:
+                logging.info("Dispatch Telegram: заказ %s → chat %s", order.order_number, cid)
+            else:
+                logging.warning("Dispatch Telegram: не доставлено, заказ %s → chat %s", order.order_number, cid)
+
+    @staticmethod
     def notify_cleaners_new_order(db: Session, order: Order):
         """Notify all available cleaners about new order via Telegram bot."""
         try:
@@ -72,6 +106,38 @@ class NotificationService:
             logging.exception("notify_cleaners_new_order failed: %s", e)
 
     @staticmethod
+    def notify_customer_order_created(db: Session, order: Order):
+        """Клиенту: заказ принят (push, запись в ленте, Telegram при привязке)."""
+        try:
+            notification = Notification(
+                user_id=order.customer_id,
+                type="order_created",
+                title="Заказ создан",
+                message=f"Заказ #{order.order_number} принят. Ожидайте назначения уборщика.",
+                related_order_id=order.id,
+            )
+            db.add(notification)
+            db.commit()
+
+            customer = db.query(User).filter(User.id == order.customer_id).first()
+            if customer and customer.telegram_id:
+                NotificationService._send_telegram_message(
+                    chat_id=customer.telegram_id,
+                    text=f"✅ Заказ #{order.order_number} принят. Ожидайте назначения уборщика.",
+                )
+
+            push_to_user_ids(
+                db,
+                [order.customer_id],
+                "Заказ создан",
+                f"Заказ #{order.order_number} принят",
+                {"type": "order_created", "order_id": str(order.id)},
+            )
+        except Exception as e:
+            db.rollback()
+            logging.exception("notify_customer_order_created failed: %s", e)
+
+    @staticmethod
     def notify_order_assigned(db: Session, order: Order):
         """Notify customer that order was assigned."""
         notification = Notification(
@@ -122,6 +188,16 @@ class NotificationService:
     def notify_customer_order_completed(db: Session, order: Order):
         """Клиенту: уборка завершена."""
         try:
+            notification = Notification(
+                user_id=order.customer_id,
+                type="order_completed",
+                title="Уборка завершена",
+                message=f"Заказ #{order.order_number} выполнен. Оцените качество и оплатите.",
+                related_order_id=order.id,
+            )
+            db.add(notification)
+            db.commit()
+
             push_to_user_ids(
                 db,
                 [order.customer_id],
@@ -129,12 +205,75 @@ class NotificationService:
                 f"Заказ #{order.order_number} выполнен. Можно оплатить.",
                 {"type": "completed", "order_id": str(order.id)},
             )
+
+            customer = db.query(User).filter(User.id == order.customer_id).first()
+            if customer and customer.telegram_id:
+                NotificationService._send_telegram_message(
+                    chat_id=customer.telegram_id,
+                    text=f"✅ Заказ #{order.order_number} выполнен! Оцените уборку и оплатите в личном кабинете.",
+                )
         except Exception as e:
-            logging.exception("notify_customer_order_completed push failed: %s", e)
+            db.rollback()
+            logging.exception("notify_customer_order_completed failed: %s", e)
 
     @staticmethod
-    def _send_telegram_message(chat_id: int, text: str):
-        """Send message via Telegram Bot API."""
+    def notify_order_cancelled(db: Session, order: Order, cancelled_by: str):
+        """Уведомить клиента и клинера (если назначен) об отмене заказа."""
+        try:
+            notification = Notification(
+                user_id=order.customer_id,
+                type="order_cancelled",
+                title="Заказ отменён",
+                message=f"Заказ #{order.order_number} отменён.",
+                related_order_id=order.id,
+            )
+            db.add(notification)
+
+            if order.cleaner_id and cancelled_by != "cleaner":
+                cleaner_notif = Notification(
+                    user_id=order.cleaner_id,
+                    type="order_cancelled",
+                    title="Заказ отменён",
+                    message=f"Заказ #{order.order_number} отменён клиентом.",
+                    related_order_id=order.id,
+                )
+                db.add(cleaner_notif)
+
+            db.commit()
+
+            push_to_user_ids(
+                db,
+                [order.customer_id],
+                "Заказ отменён",
+                f"Заказ #{order.order_number} отменён",
+                {"type": "cancelled", "order_id": str(order.id)},
+            )
+
+            if order.cleaner_id and cancelled_by != "cleaner":
+                push_to_user_ids(
+                    db,
+                    [order.cleaner_id],
+                    "Заказ отменён",
+                    f"Заказ #{order.order_number} отменён клиентом",
+                    {"type": "cancelled", "order_id": str(order.id)},
+                )
+
+            customer = db.query(User).filter(User.id == order.customer_id).first()
+            if customer and customer.telegram_id:
+                NotificationService._send_telegram_message(
+                    chat_id=customer.telegram_id,
+                    text=f"❌ Заказ #{order.order_number} отменён.",
+                )
+        except Exception as e:
+            db.rollback()
+            logging.exception("notify_order_cancelled failed: %s", e)
+
+    @staticmethod
+    def _send_telegram_message(chat_id: int, text: str) -> bool:
+        """
+        Send message via Telegram Bot API.
+        Returns True on success. Telegram often returns HTTP 200 with {"ok": false} — обязательно проверяем ok.
+        """
         try:
             url = f"{settings.TELEGRAM_API_URL}{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
             with httpx.Client() as client:
@@ -144,8 +283,28 @@ class NotificationService:
                         "chat_id": chat_id,
                         "text": text,
                     },
-                    timeout=5.0,
+                    timeout=10.0,
                 )
-                response.raise_for_status()
+            try:
+                data = response.json() if response.content else {}
+            except Exception:
+                logging.warning("Telegram response not JSON: %s", (response.text or "")[:300])
+                return False
+
+            if not response.is_success:
+                logging.warning(
+                    "Telegram HTTP %s: %s",
+                    response.status_code,
+                    (response.text or "")[:500],
+                )
+                return False
+            if isinstance(data, dict) and data.get("ok") is False:
+                logging.warning(
+                    "Telegram sendMessage failed: %s",
+                    data.get("description", data),
+                )
+                return False
+            return True
         except Exception as e:
-            print(f"Error sending Telegram message: {e}")
+            logging.warning("Telegram sendMessage error: %s", e, exc_info=True)
+            return False
