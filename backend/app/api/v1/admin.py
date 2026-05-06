@@ -32,6 +32,7 @@ from app.core.security import get_password_hash
 from app.core.config import settings
 from app.services.order_service import OrderService
 from app.services.order_purge_service import purge_all_orders, delete_single_order
+from app.services.notification_service import NotificationService
 
 router = APIRouter()
 
@@ -310,6 +311,7 @@ async def admin_create_manual_order(
                 )
 
     order_payload = body.model_dump(exclude={"customer_phone", "customer_email"})
+    order_payload["order_source"] = "crm"
     try:
         order = OrderService.create_order(
             db=db,
@@ -366,6 +368,64 @@ async def admin_delete_order(
         db.rollback()
         raise
     return {"status": "ok", "order_number": stats["order_number"]}
+
+
+@router.get("/telegram/dispatch-status", response_model=dict)
+async def admin_telegram_dispatch_status(_admin: User = Depends(get_current_admin)):
+    """Проверка: видит ли backend DISPATCH_TELEGRAM_CHAT_IDS и задан ли токен бота (без отправки в Telegram)."""
+    raw = (settings.DISPATCH_TELEGRAM_CHAT_IDS or "").strip()
+    ids: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError:
+            pass
+    tok = settings.TELEGRAM_BOT_TOKEN or ""
+    token_placeholder = tok.startswith("0000000000") or len(tok) < 20
+    return {
+        "dispatch_chat_ids_count": len(ids),
+        "dispatch_chat_ids": ids,
+        "telegram_token_configured": bool(tok and not token_placeholder),
+    }
+
+
+@router.post("/telegram/test-dispatch", response_model=dict)
+async def admin_telegram_test_dispatch(_admin: User = Depends(get_current_admin)):
+    """
+    Отправить тестовое сообщение во все чаты из DISPATCH_TELEGRAM_CHAT_IDS.
+    Убедитесь, что вы написали боту /start в личке (или бот добавлен в группу).
+    """
+    raw = (settings.DISPATCH_TELEGRAM_CHAT_IDS or "").strip()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="DISPATCH_TELEGRAM_CHAT_IDS не задан в окружении backend.",
+        )
+    chat_ids: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            chat_ids.append(int(part))
+        except ValueError:
+            pass
+    if not chat_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось разобрать ни одного chat id из DISPATCH_TELEGRAM_CHAT_IDS.",
+        )
+    results: list[dict] = []
+    for cid in chat_ids:
+        ok = NotificationService._send_telegram_message(
+            cid,
+            "QLIN — тест диспетчерского канала. Если видите это сообщение, отправка работает.",
+        )
+        results.append({"chat_id": cid, "ok": ok})
+    return {"status": "ok", "results": results}
 
 
 @router.get("/cleaners", response_model=List[dict])

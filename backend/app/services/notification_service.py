@@ -25,6 +25,9 @@ class NotificationService:
         """
         raw = (settings.DISPATCH_TELEGRAM_CHAT_IDS or "").strip()
         if not raw:
+            logging.info(
+                "notify_dispatch: пропуск — DISPATCH_TELEGRAM_CHAT_IDS пусто (задайте в .env и перезапустите backend)"
+            )
             return
         chat_ids: list[int] = []
         for part in raw.split(","):
