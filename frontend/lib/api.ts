@@ -41,9 +41,15 @@ api.interceptors.request.use((config) => {
     const h = window.location.hostname
     if (h !== 'localhost' && h !== '127.0.0.1') {
       const u = config.url || ''
-      const path = u.startsWith('/') ? u : `/${u}`
-      config.baseURL = ''
-      config.url = `${window.location.origin}/api/v1${path}`
+      // После refresh retry в config.url может быть уже полный https://.../api/v1/... — не склеивать снова
+      if (u.startsWith('http://') || u.startsWith('https://')) {
+        config.baseURL = ''
+        config.url = u
+      } else {
+        const path = u.startsWith('/') ? u : `/${u}`
+        config.baseURL = ''
+        config.url = `${window.location.origin}/api/v1${path}`
+      }
     }
     const token = localStorage.getItem('access_token')
     if (token) {

@@ -34,7 +34,15 @@ export const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  config.baseURL = `${resolveApiOrigin()}/api/v1`
+  const origin = resolveApiOrigin()
+  const u = config.url || ''
+  // Повтор после refresh: axios может подставить уже абсолютный URL — не дублировать /api/v1
+  if (u.startsWith('http://') || u.startsWith('https://')) {
+    config.baseURL = ''
+    config.url = u
+  } else {
+    config.baseURL = `${origin}/api/v1`
+  }
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('access_token')
     if (token) {
