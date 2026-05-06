@@ -372,7 +372,7 @@ async def admin_delete_order(
 
 @router.get("/telegram/dispatch-status", response_model=dict)
 async def admin_telegram_dispatch_status(_admin: User = Depends(get_current_admin)):
-    """Проверка: видит ли backend DISPATCH_TELEGRAM_CHAT_IDS и задан ли токен бота (без отправки в Telegram)."""
+    """Проверка: DISPATCH, токен бота (getMe), без отправки сообщений в чаты диспетчера."""
     raw = (settings.DISPATCH_TELEGRAM_CHAT_IDS or "").strip()
     ids: list[int] = []
     for part in raw.split(","):
@@ -385,10 +385,14 @@ async def admin_telegram_dispatch_status(_admin: User = Depends(get_current_admi
             pass
     tok = settings.TELEGRAM_BOT_TOKEN or ""
     token_placeholder = tok.startswith("0000000000") or len(tok) < 20
+    me_ok, me_detail = NotificationService.telegram_get_me()
     return {
         "dispatch_chat_ids_count": len(ids),
         "dispatch_chat_ids": ids,
         "telegram_token_configured": bool(tok and not token_placeholder),
+        "telegram_get_me_ok": me_ok,
+        "telegram_bot": me_detail if me_ok else None,
+        "telegram_get_me_error": None if me_ok else me_detail,
     }
 
 
@@ -418,14 +422,23 @@ async def admin_telegram_test_dispatch(_admin: User = Depends(get_current_admin)
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Не удалось разобрать ни одного chat id из DISPATCH_TELEGRAM_CHAT_IDS.",
         )
+    me_ok, me_detail = NotificationService.telegram_get_me()
+    if not me_ok:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Токен бота не работает (getMe): {me_detail}",
+        )
     results: list[dict] = []
     for cid in chat_ids:
-        ok = NotificationService._send_telegram_message(
+        ok, err = NotificationService.send_telegram_message_result(
             cid,
             "QLIN — тест диспетчерского канала. Если видите это сообщение, отправка работает.",
         )
-        results.append({"chat_id": cid, "ok": ok})
-    return {"status": "ok", "results": results}
+        row: dict = {"chat_id": cid, "ok": ok}
+        if not ok and err:
+            row["telegram_error"] = err
+        results.append(row)
+    return {"status": "ok", "telegram_bot": me_detail, "results": results}
 
 
 @router.get("/cleaners", response_model=List[dict])

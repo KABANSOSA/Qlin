@@ -48,11 +48,16 @@ class NotificationService:
         total_s = f"\nСумма: {total} ₽" if total is not None else ""
         text = f"📋 Новый заказ ({src})\n#{order.order_number}\n{addr}{total_s}"
         for cid in chat_ids:
-            ok = NotificationService._send_telegram_message(chat_id=cid, text=text)
+            ok, err = NotificationService.send_telegram_message_result(chat_id=cid, text=text)
             if ok:
                 logging.info("Dispatch Telegram: заказ %s → chat %s", order.order_number, cid)
             else:
-                logging.warning("Dispatch Telegram: не доставлено, заказ %s → chat %s", order.order_number, cid)
+                logging.warning(
+                    "Dispatch Telegram: не доставлено, заказ %s → chat %s: %s",
+                    order.order_number,
+                    cid,
+                    err,
+                )
 
     @staticmethod
     def notify_cleaners_new_order(db: Session, order: Order):
@@ -272,11 +277,30 @@ class NotificationService:
             logging.exception("notify_order_cancelled failed: %s", e)
 
     @staticmethod
-    def _send_telegram_message(chat_id: int, text: str) -> bool:
-        """
-        Send message via Telegram Bot API.
-        Returns True on success. Telegram often returns HTTP 200 with {"ok": false} — обязательно проверяем ok.
-        """
+    def telegram_get_me() -> tuple[bool, str]:
+        """Проверка токена бота (getMe). Возвращает (успех, @username или текст ошибки)."""
+        try:
+            url = f"{settings.TELEGRAM_API_URL}{settings.TELEGRAM_BOT_TOKEN}/getMe"
+            with httpx.Client() as client:
+                response = client.get(url, timeout=10.0)
+            try:
+                data = response.json() if response.content else {}
+            except Exception:
+                return False, (response.text or "")[:400]
+            if not response.is_success:
+                return False, f"HTTP {response.status_code}: {(response.text or '')[:300]}"
+            if isinstance(data, dict) and data.get("ok") is True:
+                un = (data.get("result") or {}).get("username") or ""
+                return True, f"@{un}" if un else "ok"
+            if isinstance(data, dict):
+                return False, str(data.get("description", data))[:500]
+            return False, "unexpected response"
+        except Exception as e:
+            return False, str(e)[:400]
+
+    @staticmethod
+    def send_telegram_message_result(chat_id: int, text: str) -> tuple[bool, str]:
+        """Отправка в Telegram: (успех, пусто или текст ошибки от API)."""
         try:
             url = f"{settings.TELEGRAM_API_URL}{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
             with httpx.Client() as client:
@@ -291,23 +315,25 @@ class NotificationService:
             try:
                 data = response.json() if response.content else {}
             except Exception:
-                logging.warning("Telegram response not JSON: %s", (response.text or "")[:300])
-                return False
+                err = (response.text or "")[:400]
+                logging.warning("Telegram response not JSON: %s", err)
+                return False, err
 
             if not response.is_success:
-                logging.warning(
-                    "Telegram HTTP %s: %s",
-                    response.status_code,
-                    (response.text or "")[:500],
-                )
-                return False
+                msg = f"HTTP {response.status_code}: {(response.text or '')[:400]}"
+                logging.warning("Telegram HTTP error: %s", msg)
+                return False, msg
             if isinstance(data, dict) and data.get("ok") is False:
-                logging.warning(
-                    "Telegram sendMessage failed: %s",
-                    data.get("description", data),
-                )
-                return False
-            return True
+                desc = str(data.get("description", data))
+                logging.warning("Telegram sendMessage failed: %s", desc)
+                return False, desc
+            return True, ""
         except Exception as e:
             logging.warning("Telegram sendMessage error: %s", e, exc_info=True)
-            return False
+            return False, str(e)[:400]
+
+    @staticmethod
+    def _send_telegram_message(chat_id: int, text: str) -> bool:
+        """Send message via Telegram Bot API."""
+        ok, _ = NotificationService.send_telegram_message_result(chat_id, text)
+        return ok
