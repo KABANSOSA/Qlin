@@ -50,6 +50,11 @@ class Order(Base):
     discount = Column(Numeric(10, 2), default=0, nullable=False)
     total_price = Column(Numeric(10, 2), nullable=False)
 
+    # Cost & margin (admin-only, not exposed to customers)
+    cleaner_payout = Column(Numeric(10, 2), nullable=True)
+    supply_cost = Column(Numeric(10, 2), default=0, server_default="0")
+    other_cost = Column(Numeric(10, 2), default=0, server_default="0")
+
     # Status
     status = Column(String(20), nullable=False, default="pending", index=True)
     # pending, assigned, in_progress, completed, cancelled, paid
