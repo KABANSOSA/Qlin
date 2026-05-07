@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
+import { format, isValid, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import {
   ArrowUpDown,
@@ -32,6 +32,12 @@ interface ContactRow {
 
 type SortKey = 'orders_count' | 'created_at' | 'first_name'
 
+function formatRuDate(iso: string | null | undefined) {
+  if (!iso) return '—'
+  const d = parseISO(iso)
+  return isValid(d) ? format(d, 'd MMM yyyy', { locale: ru }) : '—'
+}
+
 export default function CrmContactsPage() {
   const router = useRouter()
   const { loading, user, error: accessError, retry } = useCrmAccess()
@@ -40,7 +46,7 @@ export default function CrmContactsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('orders_count')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  const { data: contacts = [], refetch, isFetching, isLoading, error } = useQuery({
+  const { data: contactsRaw, refetch, isFetching, isLoading, error } = useQuery({
     queryKey: ['admin-users-customers', user?.id],
     queryFn: async () => {
       const { data } = await api.get<ContactRow[]>('/admin/users', { params: { role: 'customer', limit: 200 } })
@@ -50,14 +56,7 @@ export default function CrmContactsPage() {
     staleTime: 30_000,
   })
 
-  if (loading || accessError || !user) {
-    return <CrmAccessBarrier loading={loading} user={user} error={accessError} retry={retry} />
-  }
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('desc') }
-  }
+  const contacts = Array.isArray(contactsRaw) ? contactsRaw : []
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -78,6 +77,15 @@ export default function CrmContactsPage() {
       return 0
     })
   }, [contacts, search, sortKey, sortDir])
+
+  if (loading || accessError || !user) {
+    return <CrmAccessBarrier loading={loading} user={user} error={accessError} retry={retry} />
+  }
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
 
   function createLeadFromContact(c: ContactRow) {
     const params = new URLSearchParams()
@@ -180,7 +188,7 @@ export default function CrmContactsPage() {
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {c.created_at ? format(new Date(c.created_at), 'd MMM yyyy', { locale: ru }) : '—'}
+                      {formatRuDate(c.created_at)}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={cn(
