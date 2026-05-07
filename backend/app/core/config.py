@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
     DB_ECHO: bool = Field(default=False, env="DB_ECHO")
 
+    # Опасные операции (только стенд / явное включение)
+    ALLOW_PURGE_ALL_ORDERS: bool = Field(default=False, env="ALLOW_PURGE_ALL_ORDERS")
+
     # Из общего .env / docker-compose (для postgres, фронта) — бэкенд не читает, но они не должны ломать Settings()
     POSTGRES_USER: Optional[str] = Field(default=None, env="POSTGRES_USER")
     POSTGRES_PASSWORD: Optional[str] = Field(default=None, env="POSTGRES_PASSWORD")
@@ -143,6 +146,17 @@ class Settings(BaseSettings):
         env="TELEGRAM_WEBHOOK_SECRET",
     )
     TELEGRAM_API_URL: str = "https://api.telegram.org/bot"
+
+    # Новые заказы: оповещение диспетчера/офиса тем же ботом (chat id через @userinfobot / группа)
+    DISPATCH_TELEGRAM_CHAT_IDS: str = Field(
+        default="",
+        env="DISPATCH_TELEGRAM_CHAT_IDS",
+    )
+
+    # VK: сообщество + сообщения сообщества (ключ с правами messages). Получатели — peer_id (обычно id пользователя ВК); пользователь должен открыть диалог с сообществом.
+    VK_COMMUNITY_TOKEN: str = Field(default="", env="VK_COMMUNITY_TOKEN")
+    VK_API_VERSION: str = Field(default="5.199", env="VK_API_VERSION")
+    DISPATCH_VK_PEER_IDS: str = Field(default="", env="DISPATCH_VK_PEER_IDS")
 
     @field_validator("TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", mode="before")
     @classmethod

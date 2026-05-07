@@ -50,10 +50,13 @@ def send_telegram_message(self, chat_id: int, text: str):
         import httpx
         from app.core.config import settings
 
+        from app.core.ipv4_outbound import force_ipv4_for_external_apis
+
         url = f"{settings.TELEGRAM_API_URL}{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-        with httpx.Client(timeout=10.0) as client:
-            resp = client.post(url, json={"chat_id": chat_id, "text": text})
-            resp.raise_for_status()
+        with force_ipv4_for_external_apis():
+            with httpx.Client(timeout=10.0) as client:
+                resp = client.post(url, json={"chat_id": chat_id, "text": text})
+                resp.raise_for_status()
         logger.info("Telegram message sent to %s", chat_id)
     except Exception as exc:
         logger.exception("send_telegram_message failed")

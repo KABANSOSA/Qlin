@@ -8,6 +8,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models.push_device import PushDevice
+from app.core.ipv4_outbound import force_ipv4_for_external_apis
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
@@ -41,8 +42,9 @@ def send_expo_push(
     ]
     for batch in _chunked(messages, 100):
         try:
-            with httpx.Client(timeout=15.0) as client:
-                r = client.post(EXPO_PUSH_URL, json={"messages": batch})
+            with force_ipv4_for_external_apis():
+                with httpx.Client(timeout=15.0) as client:
+                    r = client.post(EXPO_PUSH_URL, json={"messages": batch})
                 if r.status_code >= 400:
                     logger.warning("Expo push HTTP %s: %s", r.status_code, r.text[:500])
         except Exception:

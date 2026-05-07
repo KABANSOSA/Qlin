@@ -42,6 +42,10 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-0000000000:local-dev-placeholder}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-change-me-local-dev}
+      - DISPATCH_TELEGRAM_CHAT_IDS=${DISPATCH_TELEGRAM_CHAT_IDS:-}
+      - VK_COMMUNITY_TOKEN=${VK_COMMUNITY_TOKEN:-}
+      - VK_API_VERSION=${VK_API_VERSION:-5.199}
+      - DISPATCH_VK_PEER_IDS=${DISPATCH_VK_PEER_IDS:-}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
       - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-}
     ports:

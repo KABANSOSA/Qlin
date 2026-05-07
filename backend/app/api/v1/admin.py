@@ -441,6 +441,89 @@ async def admin_telegram_test_dispatch(_admin: User = Depends(get_current_admin)
     return {"status": "ok", "telegram_bot": me_detail, "results": results}
 
 
+@router.get("/vk/dispatch-status", response_model=dict)
+async def admin_vk_dispatch_status(_admin: User = Depends(get_current_admin)):
+    """Проверка: DISPATCH_VK_PEER_IDS, ключ сообщества (messages.getConversations)."""
+    raw = (settings.DISPATCH_VK_PEER_IDS or "").strip()
+    ids: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError:
+            pass
+    tok = (settings.VK_COMMUNITY_TOKEN or "").strip()
+    if not tok:
+        return {
+            "dispatch_peer_ids_count": len(ids),
+            "dispatch_peer_ids": ids,
+            "vk_token_configured": False,
+            "vk_api_check_ok": False,
+            "vk_api_check_error": "VK_COMMUNITY_TOKEN не задан",
+            "vk_api_version": settings.VK_API_VERSION,
+        }
+    me_ok, me_detail = NotificationService.vk_dispatch_api_check()
+    return {
+        "dispatch_peer_ids_count": len(ids),
+        "dispatch_peer_ids": ids,
+        "vk_token_configured": True,
+        "vk_api_check_ok": me_ok,
+        "vk_api_check_error": None if me_ok else me_detail,
+        "vk_api_version": settings.VK_API_VERSION,
+    }
+
+
+@router.post("/vk/test-dispatch", response_model=dict)
+async def admin_vk_test_dispatch(_admin: User = Depends(get_current_admin)):
+    """
+    Тестовое сообщение во все peer_id из DISPATCH_VK_PEER_IDS.
+    Пользователь ВК должен открыть диалог с сообществом (написать в ЛС сообщества).
+    """
+    raw = (settings.DISPATCH_VK_PEER_IDS or "").strip()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="DISPATCH_VK_PEER_IDS не задан в окружении backend.",
+        )
+    peer_ids: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            peer_ids.append(int(part))
+        except ValueError:
+            pass
+    if not peer_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось разобрать ни одного peer id из DISPATCH_VK_PEER_IDS.",
+        )
+    tok = (settings.VK_COMMUNITY_TOKEN or "").strip()
+    if not tok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="VK_COMMUNITY_TOKEN не задан.",
+        )
+    me_ok, me_detail = NotificationService.vk_dispatch_api_check()
+    if not me_ok:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Ключ сообщества не работает (VK API): {me_detail}",
+        )
+    results: list[dict] = []
+    msg = "QLIN — тест диспетчерского канала VK. Если видите это сообщение, отправка работает."
+    for pid in peer_ids:
+        ok, err = NotificationService.send_vk_dispatch_message_result(peer_id=pid, text=msg)
+        row: dict = {"peer_id": pid, "ok": ok}
+        if not ok and err:
+            row["vk_error"] = err
+        results.append(row)
+    return {"status": "ok", "vk_api": "ok", "results": results}
+
+
 @router.get("/cleaners", response_model=List[dict])
 async def list_cleaners_for_dispatch(
     current_user: User = Depends(get_current_admin),

@@ -2,6 +2,7 @@
 Notification service for sending notifications.
 """
 import logging
+import secrets
 from sqlalchemy.orm import Session
 import httpx
 
@@ -11,6 +12,7 @@ from app.models.cleaner import Cleaner
 from app.models.notification import Notification
 from app.models.push_device import PushDevice
 from app.core.config import settings
+from app.core.ipv4_outbound import force_ipv4_for_external_apis
 from app.services.expo_push_service import push_to_user_ids
 
 
@@ -18,28 +20,43 @@ class NotificationService:
     """Service for sending notifications."""
 
     @staticmethod
-    def notify_dispatch_new_order(db: Session, order: Order, source: str = "site") -> None:
-        """
-        Telegram офису/диспетчеру при любом новом заказе (сайт или CRM).
-        Задайте DISPATCH_TELEGRAM_CHAT_IDS в .env — через запятую (личный чат или группа).
-        """
-        raw = (settings.DISPATCH_TELEGRAM_CHAT_IDS or "").strip()
-        if not raw:
-            logging.info(
-                "notify_dispatch: пропуск — DISPATCH_TELEGRAM_CHAT_IDS пусто (задайте в .env и перезапустите backend)"
-            )
-            return
-        chat_ids: list[int] = []
-        for part in raw.split(","):
+    def _parse_comma_int_ids(raw: str, env_name: str) -> list[int]:
+        out: list[int] = []
+        for part in (raw or "").split(","):
             part = part.strip()
             if not part:
                 continue
             try:
-                chat_ids.append(int(part))
+                out.append(int(part))
             except ValueError:
-                logging.warning("DISPATCH_TELEGRAM_CHAT_IDS: пропуск нечислового фрагмента %r", part)
-        if not chat_ids:
+                logging.warning("%s: пропуск нечислового фрагмента %r", env_name, part)
+        return out
+
+    @staticmethod
+    def notify_dispatch_new_order(db: Session, order: Order, source: str = "site") -> None:
+        """
+        Офису/диспетчеру при новом заказе: Telegram и/или VK (настраивается в .env).
+        Telegram: DISPATCH_TELEGRAM_CHAT_IDS. VK: VK_COMMUNITY_TOKEN + DISPATCH_VK_PEER_IDS.
+        """
+        chat_ids = NotificationService._parse_comma_int_ids(
+            settings.DISPATCH_TELEGRAM_CHAT_IDS or "", "DISPATCH_TELEGRAM_CHAT_IDS"
+        )
+        vk_peers = NotificationService._parse_comma_int_ids(
+            settings.DISPATCH_VK_PEER_IDS or "", "DISPATCH_VK_PEER_IDS"
+        )
+        vk_token = (settings.VK_COMMUNITY_TOKEN or "").strip()
+
+        if vk_peers and not vk_token:
+            logging.warning(
+                "notify_dispatch: DISPATCH_VK_PEER_IDS задан, но VK_COMMUNITY_TOKEN пуст — VK пропущен"
+            )
+
+        if not chat_ids and not vk_peers:
+            logging.info(
+                "notify_dispatch: пропуск — не заданы DISPATCH_TELEGRAM_CHAT_IDS и DISPATCH_VK_PEER_IDS"
+            )
             return
+
         src = "CRM" if source == "crm" else "Сайт"
         addr = (order.address or "").strip()
         if len(addr) > 200:
@@ -47,6 +64,7 @@ class NotificationService:
         total = getattr(order, "total_price", None)
         total_s = f"\nСумма: {total} ₽" if total is not None else ""
         text = f"📋 Новый заказ ({src})\n#{order.order_number}\n{addr}{total_s}"
+
         for cid in chat_ids:
             ok, err = NotificationService.send_telegram_message_result(chat_id=cid, text=text)
             if ok:
@@ -58,6 +76,20 @@ class NotificationService:
                     cid,
                     err,
                 )
+
+        if vk_peers and vk_token:
+            vk_text = text if len(text) <= 4096 else text[:4093] + "…"
+            for pid in vk_peers:
+                ok, err = NotificationService.send_vk_dispatch_message_result(peer_id=pid, text=vk_text)
+                if ok:
+                    logging.info("Dispatch VK: заказ %s → peer %s", order.order_number, pid)
+                else:
+                    logging.warning(
+                        "Dispatch VK: не доставлено, заказ %s → peer %s: %s",
+                        order.order_number,
+                        pid,
+                        err,
+                    )
 
     @staticmethod
     def notify_cleaners_new_order(db: Session, order: Order):
@@ -277,12 +309,89 @@ class NotificationService:
             logging.exception("notify_order_cancelled failed: %s", e)
 
     @staticmethod
+    def vk_dispatch_api_check() -> tuple[bool, str]:
+        """Проверка ключа сообщества (messages.getConversations)."""
+        tok = (settings.VK_COMMUNITY_TOKEN or "").strip()
+        if not tok:
+            return False, "VK_COMMUNITY_TOKEN пуст"
+        try:
+            form = {
+                "access_token": tok,
+                "v": settings.VK_API_VERSION,
+                "count": "1",
+            }
+            with force_ipv4_for_external_apis():
+                with httpx.Client() as client:
+                    response = client.post(
+                        "https://api.vk.com/method/messages.getConversations",
+                        data=form,
+                        timeout=12.0,
+                    )
+            try:
+                j = response.json() if response.content else {}
+            except Exception:
+                return False, (response.text or "")[:400]
+            if not response.is_success:
+                return False, f"HTTP {response.status_code}: {(response.text or '')[:300]}"
+            if isinstance(j, dict) and "error" in j:
+                err = j.get("error") or {}
+                code = err.get("error_code", "?")
+                msg = err.get("error_msg", "")
+                return False, f"VK API {code}: {msg}"
+            if isinstance(j, dict) and "response" in j:
+                return True, "ok"
+            return False, "unexpected response"
+        except Exception as e:
+            return False, str(e)[:400]
+
+    @staticmethod
+    def send_vk_dispatch_message_result(peer_id: int, text: str) -> tuple[bool, str]:
+        """Личное сообщение от имени сообщества (messages.send)."""
+        tok = (settings.VK_COMMUNITY_TOKEN or "").strip()
+        if not tok:
+            return False, "VK_COMMUNITY_TOKEN пуст"
+        body = text if len(text) <= 4096 else text[:4093] + "…"
+        try:
+            form = {
+                "peer_id": str(peer_id),
+                "message": body,
+                "random_id": str(secrets.randbelow(2**31)),
+                "access_token": tok,
+                "v": settings.VK_API_VERSION,
+            }
+            with force_ipv4_for_external_apis():
+                with httpx.Client() as client:
+                    response = client.post(
+                        "https://api.vk.com/method/messages.send",
+                        data=form,
+                        timeout=15.0,
+                    )
+            try:
+                j = response.json() if response.content else {}
+            except Exception:
+                return False, (response.text or "")[:400]
+            if not response.is_success:
+                return False, f"HTTP {response.status_code}: {(response.text or '')[:400]}"
+            if isinstance(j, dict) and "error" in j:
+                err = j.get("error") or {}
+                code = err.get("error_code", "?")
+                msg = err.get("error_msg", "")
+                return False, f"VK API {code}: {msg}"
+            if isinstance(j, dict) and "response" in j:
+                return True, ""
+            return False, str(j)[:400]
+        except Exception as e:
+            logging.warning("VK messages.send error: %s", e, exc_info=True)
+            return False, str(e)[:400]
+
+    @staticmethod
     def telegram_get_me() -> tuple[bool, str]:
         """Проверка токена бота (getMe). Возвращает (успех, @username или текст ошибки)."""
         try:
             url = f"{settings.TELEGRAM_API_URL}{settings.TELEGRAM_BOT_TOKEN}/getMe"
-            with httpx.Client() as client:
-                response = client.get(url, timeout=10.0)
+            with force_ipv4_for_external_apis():
+                with httpx.Client() as client:
+                    response = client.get(url, timeout=10.0)
             try:
                 data = response.json() if response.content else {}
             except Exception:
@@ -303,15 +412,16 @@ class NotificationService:
         """Отправка в Telegram: (успех, пусто или текст ошибки от API)."""
         try:
             url = f"{settings.TELEGRAM_API_URL}{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-            with httpx.Client() as client:
-                response = client.post(
-                    url,
-                    json={
-                        "chat_id": chat_id,
-                        "text": text,
-                    },
-                    timeout=10.0,
-                )
+            with force_ipv4_for_external_apis():
+                with httpx.Client() as client:
+                    response = client.post(
+                        url,
+                        json={
+                            "chat_id": chat_id,
+                            "text": text,
+                        },
+                        timeout=10.0,
+                    )
             try:
                 data = response.json() if response.content else {}
             except Exception:
