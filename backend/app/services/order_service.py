@@ -175,25 +175,33 @@ class OrderService:
         notification_service = NotificationService()
         notification_service.notify_cleaners_new_order(db, order)
         notification_service.notify_customer_order_created(db, order)
-        try:
-            db.refresh(order)
-        except Exception:
-            logger.exception("create_order: refresh order before dispatch failed pk=%s", order_pk)
-        logger.warning(
-            "create_order: dispatch notify start order=%s source=%s",
-            getattr(order, "order_number", order_pk),
-            order_source,
-        )
-        try:
-            notification_service.notify_dispatch_new_order(db, order, source=order_source)
-        except Exception:
-            logger.exception(
-                "create_order: notify_dispatch_new_order failed order_pk=%s — заказ уже создан",
+
+        order_for_dispatch = db.query(Order).filter(Order.id == order_pk).first()
+        if order_for_dispatch is None:
+            logger.error(
+                "create_order: заказ %s не найден в БД перед dispatch — пропуск уведомлений диспетчеру",
                 order_pk,
             )
+        else:
+            try:
+                logger.warning(
+                    "create_order: dispatch notify start order=%s source=%s",
+                    order_for_dispatch.order_number,
+                    order_source,
+                )
+                notification_service.notify_dispatch_new_order(
+                    db, order_for_dispatch, source=order_source
+                )
+            except Exception:
+                logger.exception(
+                    "create_order: notify_dispatch_new_order failed order_pk=%s — заказ уже создан",
+                    order_pk,
+                )
 
         try:
-            create_opportunity_from_order(db, order)
+            co_order = order_for_dispatch or db.query(Order).filter(Order.id == order_pk).first()
+            if co_order:
+                create_opportunity_from_order(db, co_order)
         except Exception:
             logging.exception("create_opportunity_from_order failed")
 
