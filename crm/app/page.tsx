@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import {
@@ -43,6 +44,15 @@ interface Stats {
   month_margin_rub: number
   month_margin_pct: number
   total_payout_rub: number
+  selected_period?: string
+  period_from?: string
+  period_to?: string
+  period_orders_count?: number
+  period_revenue_paid_rub?: number
+  period_orders_volume_rub?: number
+  period_avg_order_rub?: number
+  period_margin_rub?: number
+  period_margin_pct?: number
 }
 
 interface Opp {
@@ -104,11 +114,14 @@ function StatCard({
 
 export default function CrmDashboardPage() {
   const { loading, user, error, retry } = useCrmAccess()
+  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year'>('month')
 
   const { data: stats, refetch, isFetching, isLoading: statsLoading, isError: statsError } = useQuery({
-    queryKey: ['admin-stats', user?.id],
+    queryKey: ['admin-stats', user?.id, statsPeriod],
     queryFn: async () => {
-      const { data } = await api.get<Stats>('/admin/stats')
+      const { data } = await api.get<Stats>('/admin/stats', {
+        params: { period: statsPeriod },
+      })
       return data
     },
     enabled: !!user,
@@ -194,11 +207,103 @@ export default function CrmDashboardPage() {
           <StatCard icon={TrendingUp} label="Выручка (оплачено)" value={statsLoading ? '…' : stats ? `${Math.round(stats.revenue_paid_rub).toLocaleString('ru-RU')} ₽` : '—'} sub={`За неделю: ${stats ? Math.round(stats.revenue_this_week_rub).toLocaleString('ru-RU') + ' ₽' : '—'}`} />
         </div>
 
-        <div className="mt-3 grid gap-4 sm:grid-cols-4">
-          <StatCard icon={CalendarDays} label="За неделю" value={`${statsLoading ? '…' : stats?.orders_this_week ?? 0} заявок`} />
-          <StatCard icon={Briefcase} label="За месяц" value={`${statsLoading ? '…' : stats?.orders_this_month ?? 0} заявок`} />
-          <StatCard icon={BarChart3} label="Выручка за месяц" value={statsLoading ? '…' : stats ? `${Math.round(stats.revenue_this_month_rub).toLocaleString('ru-RU')} ₽` : '—'} />
-          <StatCard icon={PiggyBank} label="Маржа за месяц" value={statsLoading ? '…' : stats ? `${Math.round(stats.month_margin_rub).toLocaleString('ru-RU')} ₽` : '—'} sub={stats ? `${stats.month_margin_pct}% от выручки` : ''} />
+        <div className="mt-3 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Показатели по периоду
+            </h3>
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
+              {(
+                [
+                  { key: 'week' as const, label: 'Неделя' },
+                  { key: 'month' as const, label: 'Месяц' },
+                  { key: 'year' as const, label: 'Год' },
+                ] as const
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setStatsPeriod(key)}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                    statsPeriod === key
+                      ? 'bg-white text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {stats?.period_from && (
+            <p className="text-xs text-muted-foreground">
+              С{' '}
+              <span className="font-medium text-foreground">
+                {format(new Date(stats.period_from), 'd MMM yyyy', { locale: ru })}
+              </span>{' '}
+              (UTC); заявки по дате создания.
+            </p>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <StatCard
+              icon={CalendarDays}
+              label={`Заявок (${statsPeriod === 'week' ? 'неделя' : statsPeriod === 'month' ? 'месяц' : 'год'})`}
+              value={`${statsLoading ? '…' : stats?.period_orders_count ?? '—'}`}
+              sub="Все статусы, по дате создания"
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="Оплачено за период"
+              value={
+                statsLoading
+                  ? '…'
+                  : stats
+                    ? `${Math.round(stats.period_revenue_paid_rub ?? 0).toLocaleString('ru-RU')} ₽`
+                    : '—'
+              }
+              sub="Сумма оплаченных заявок"
+            />
+            <StatCard
+              icon={BarChart3}
+              label="Объём (не отменены)"
+              value={
+                statsLoading
+                  ? '…'
+                  : stats
+                    ? `${Math.round(stats.period_orders_volume_rub ?? 0).toLocaleString('ru-RU')} ₽`
+                    : '—'
+              }
+            />
+            <StatCard
+              icon={PiggyBank}
+              label="Маржа за период"
+              value={
+                statsLoading
+                  ? '…'
+                  : stats
+                    ? `${Math.round(stats.period_margin_rub ?? 0).toLocaleString('ru-RU')} ₽`
+                    : '—'
+              }
+              sub={
+                stats != null && stats.period_margin_pct != null
+                  ? `${stats.period_margin_pct}% от объёма`
+                  : ''
+              }
+            />
+            <StatCard
+              icon={Percent}
+              label="Средний чек за период"
+              value={
+                statsLoading
+                  ? '…'
+                  : stats
+                    ? `${Math.round(stats.period_avg_order_rub ?? 0).toLocaleString('ru-RU')} ₽`
+                    : '—'
+              }
+              sub="По неотменённым заявкам"
+            />
+          </div>
         </div>
 
         <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

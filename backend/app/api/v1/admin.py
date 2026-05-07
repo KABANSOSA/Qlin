@@ -701,14 +701,31 @@ async def admin_update_order_costs(
 async def get_admin_stats(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
+    period: str = Query(
+        "month",
+        description="Скользящий период для блока «по периоду»: week | month | year (текущая календарная неделя/месяц/год с начала периода по сейчас, UTC).",
+    ),
 ):
     """Сводка для CRM: клиенты, заказы по статусам, выручка, период-метрики."""
     from datetime import datetime, timedelta, timezone
+
+    if period not in ("week", "month", "year"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="period должен быть: week, month или year",
+        )
 
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=today_start.weekday())
     month_start = today_start.replace(day=1)
+    year_start = today_start.replace(month=1, day=1)
+    period_starts = {
+        "week": week_start,
+        "month": month_start,
+        "year": year_start,
+    }
+    p_start = period_starts[period]
 
     customers = db.query(func.count(User.id)).filter(User.role == "customer").scalar() or 0
     cleaners_count = db.query(func.count(User.id)).filter(User.role == "cleaner").scalar() or 0
@@ -840,6 +857,74 @@ async def get_admin_stats(
             else 0.0
         )
 
+    # ---- Метрики по выбранному периоду (неделя / месяц / год) ----
+    period_orders_count = (
+        db.query(func.count(Order.id))
+        .filter(Order.created_at >= p_start)
+        .scalar()
+    ) or 0
+
+    period_revenue_paid_rub = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(
+            Order.payment_status == "paid",
+            Order.created_at >= p_start,
+        )
+        .scalar()
+    ) or Decimal("0")
+
+    period_orders_volume_rub = (
+        db.query(func.coalesce(func.sum(Order.total_price), 0))
+        .filter(Order.status.notin_(["cancelled"]), Order.created_at >= p_start)
+        .scalar()
+    ) or Decimal("0")
+
+    period_non_cancelled_count = (
+        db.query(func.count(Order.id))
+        .filter(Order.status.notin_(["cancelled"]), Order.created_at >= p_start)
+        .scalar()
+    ) or 0
+
+    period_avg_order_rub = (
+        float(period_orders_volume_rub) / float(period_non_cancelled_count)
+        if period_non_cancelled_count > 0
+        else 0.0
+    )
+
+    period_margin_rub_sel = 0.0
+    period_margin_pct_sel = 0.0
+    finance_cols_p = _orders_finance_columns(db)
+    if finance_cols_p.get("cleaner_payout"):
+        pr_rev = (
+            db.query(func.coalesce(func.sum(Order.total_price), 0))
+            .filter(Order.status.notin_(["cancelled"]), Order.created_at >= p_start)
+            .scalar()
+        ) or Decimal("0")
+        pr_payout = (
+            db.query(func.coalesce(func.sum(Order.cleaner_payout), 0))
+            .filter(Order.status.notin_(["cancelled"]), Order.created_at >= p_start)
+            .scalar()
+        ) or Decimal("0")
+        pr_supply = Decimal("0")
+        if finance_cols_p.get("supply_cost"):
+            pr_supply = (
+                db.query(func.coalesce(func.sum(Order.supply_cost), 0))
+                .filter(Order.status.notin_(["cancelled"]), Order.created_at >= p_start)
+                .scalar()
+            ) or Decimal("0")
+        pr_other = Decimal("0")
+        if finance_cols_p.get("other_cost"):
+            pr_other = (
+                db.query(func.coalesce(func.sum(Order.other_cost), 0))
+                .filter(Order.status.notin_(["cancelled"]), Order.created_at >= p_start)
+                .scalar()
+            ) or Decimal("0")
+        pr_costs = float(pr_payout) + float(pr_supply) + float(pr_other)
+        period_margin_rub_sel = float(pr_rev) - pr_costs
+        period_margin_pct_sel = (
+            round((period_margin_rub_sel / float(pr_rev)) * 100, 1) if float(pr_rev) > 0 else 0.0
+        )
+
     return {
         "customers": int(customers),
         "cleaners": int(cleaners_count),
@@ -857,6 +942,16 @@ async def get_admin_stats(
         "month_margin_rub": round(month_margin_rub, 2),
         "month_margin_pct": month_margin_pct,
         "total_payout_rub": float(total_payout),
+        # Выбранный период (параметр period)
+        "selected_period": period,
+        "period_from": p_start.isoformat(),
+        "period_to": now.isoformat(),
+        "period_orders_count": int(period_orders_count),
+        "period_revenue_paid_rub": float(period_revenue_paid_rub),
+        "period_orders_volume_rub": float(period_orders_volume_rub),
+        "period_avg_order_rub": round(period_avg_order_rub, 2),
+        "period_margin_rub": round(period_margin_rub_sel, 2),
+        "period_margin_pct": period_margin_pct_sel,
     }
 
 
