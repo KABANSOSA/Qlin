@@ -1,6 +1,8 @@
 """
 Order service for business logic.
 """
+import logging
+from decimal import Decimal
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -13,7 +15,11 @@ from app.models.zone import Zone
 from app.services.state_machine import OrderStateMachine, OrderStatus
 from app.services.pricing_service import PricingService
 from app.services.notification_service import NotificationService
+from app.services.crm_opportunity_service import create_opportunity_from_order
+from app.core.pricing_constants import DEFAULT_CLEANER_PAYOUT_RATE
 from app.db.redis_client import redis_lock
+
+logger = logging.getLogger(__name__)
 
 
 class OrderService:
@@ -83,6 +89,7 @@ class OrderService:
     ) -> Order:
         """Create a new order."""
         order_data = dict(order_data)
+        order_source = str(order_data.pop("order_source", "site") or "site")
         service_city = order_data.pop("service_city", None)
         if service_city:
             city_label = OrderService.SERVICE_CITY_TO_ZONE_CITY.get(service_city)
@@ -114,6 +121,9 @@ class OrderService:
             order_data.get("address_lon"),
         )
 
+        total = price_info["total_price"]
+        payout = (total * DEFAULT_CLEANER_PAYOUT_RATE).quantize(Decimal("0.01"))
+
         # Create order
         order = Order(
             order_number=OrderService.generate_order_number(db),
@@ -137,8 +147,10 @@ class OrderService:
             base_price=price_info["base_price"],
             extra_services_price=price_info.get("extra_services_price", 0),
             discount=price_info.get("discount", 0),
-            total_price=price_info["total_price"],
+            total_price=total,
+            cleaner_payout=payout,
             status=OrderStatus.PENDING.value,
+            payment_method=order_data.get("payment_method"),
         )
 
         db.add(order)
@@ -162,6 +174,28 @@ class OrderService:
         # Notify cleaners via bot
         notification_service = NotificationService()
         notification_service.notify_cleaners_new_order(db, order)
+        notification_service.notify_customer_order_created(db, order)
+        try:
+            db.refresh(order)
+        except Exception:
+            logger.exception("create_order: refresh order before dispatch failed pk=%s", order_pk)
+        logger.warning(
+            "create_order: dispatch notify start order=%s source=%s",
+            getattr(order, "order_number", order_pk),
+            order_source,
+        )
+        try:
+            notification_service.notify_dispatch_new_order(db, order, source=order_source)
+        except Exception:
+            logger.exception(
+                "create_order: notify_dispatch_new_order failed order_pk=%s — заказ уже создан",
+                order_pk,
+            )
+
+        try:
+            create_opportunity_from_order(db, order)
+        except Exception:
+            logging.exception("create_opportunity_from_order failed")
 
         # После нескольких commit/rollback сессия может «испортить» экземпляр — читаем заказ заново.
         reloaded = db.query(Order).filter(Order.id == order_pk).one()
@@ -367,6 +401,14 @@ class OrderService:
             db.commit()
             return True
 
+        if pair == ("pending", "in_progress"):
+            order.status = "in_progress"
+            if order.started_at is None:
+                order.started_at = utcnow()
+            OrderService._admin_log_status_change(db, order, old, new, admin_id)
+            db.commit()
+            return True
+
         return False
 
     @staticmethod
@@ -384,45 +426,48 @@ class OrderService:
                 "Допустимые этапы: pending, assigned, in_progress, completed, cancelled"
             )
 
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            raise ValueError("Заказ не найден")
+
+        old = order.status
+        if old == new_status:
+            return order
+
+        if old == "paid":
+            raise ValueError("Заказ в статусе «Оплачен» — смена этапа вручную недоступна")
+
+        if old == "pending" and new_status == "assigned":
+            raise ValueError(
+                "Из «Новый» в «Назначен» используйте «Назначить клинера» — нужен исполнитель."
+            )
+
+        if OrderStateMachine.can_transition(old, new_status):
+            ok = OrderStateMachine.transition(
+                db=db,
+                order=order,
+                new_status=new_status,
+                actor_id=str(admin_id),
+                actor_type="admin",
+            )
+            if ok:
+                db.refresh(order)
+                return order
+            raise ValueError("Не удалось применить переход (конфликт состояния)")
+
         lock_key = f"order_transition:{order_id}"
         with redis_lock(lock_key, timeout=10, expire=15) as acquired:
             if not acquired:
                 raise ValueError("Заказ занят другой операцией, повторите позже")
 
-            order = db.query(Order).filter(Order.id == order_id).first()
-            if not order:
-                raise ValueError("Заказ не найден")
-
+            db.refresh(order)
             old = order.status
-            if old == new_status:
-                return order
-
-            if old == "paid":
-                raise ValueError("Заказ в статусе «Оплачен» — смена этапа вручную недоступна")
-
-            if old == "pending" and new_status == "assigned":
-                raise ValueError(
-                    "Из «Новый» в «Назначен» используйте «Назначить клинера» — нужен исполнитель."
-                )
-
-            if OrderStateMachine.can_transition(old, new_status):
-                ok = OrderStateMachine.transition(
-                    db=db,
-                    order=order,
-                    new_status=new_status,
-                    actor_id=str(admin_id),
-                    actor_type="admin",
-                )
-                if ok:
-                    db.refresh(order)
-                    return order
-                raise ValueError("Не удалось применить переход (конфликт состояния)")
 
             if OrderService._admin_apply_manual_status(db, order, old, new_status, admin_id):
                 db.refresh(order)
                 return order
 
-            raise ValueError(
-                f"Переход «{old}» → «{new_status}» сейчас недоступен. "
-                "Проверьте этап и наличие клинера; из «Новый» в «Назначен» используйте «Назначить клинера»."
-            )
+        raise ValueError(
+            f"Переход «{old}» → «{new_status}» сейчас недоступен. "
+            "Проверьте этап и наличие клинера; из «Новый» в «Назначен» используйте «Назначить клинера»."
+        )

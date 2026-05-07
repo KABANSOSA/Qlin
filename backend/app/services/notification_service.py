@@ -46,14 +46,24 @@ class NotificationService:
         )
         vk_token = (settings.VK_COMMUNITY_TOKEN or "").strip()
 
+        logging.info(
+            "notify_dispatch: заказ %s source=%s telegram_ids=%s vk_peers=%s vk_token_set=%s",
+            getattr(order, "order_number", "?"),
+            source,
+            len(chat_ids),
+            len(vk_peers),
+            bool(vk_token),
+        )
+
         if vk_peers and not vk_token:
             logging.warning(
                 "notify_dispatch: DISPATCH_VK_PEER_IDS задан, но VK_COMMUNITY_TOKEN пуст — VK пропущен"
             )
 
         if not chat_ids and not vk_peers:
-            logging.info(
-                "notify_dispatch: пропуск — не заданы DISPATCH_TELEGRAM_CHAT_IDS и DISPATCH_VK_PEER_IDS"
+            logging.warning(
+                "notify_dispatch: пропуск — не заданы DISPATCH_TELEGRAM_CHAT_IDS и DISPATCH_VK_PEER_IDS "
+                "(проверьте env контейнера backend)"
             )
             return
 
