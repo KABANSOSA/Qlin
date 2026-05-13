@@ -1,14 +1,14 @@
 """CRM: source/assigned_to в opportunities, новая таблица crm_tasks
 
 Revision ID: 006_crm_tasks_and_opportunity_fields
-Revises: 005_order_margin_fields
+Revises: 005a_alembic_version_widen
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = "006_crm_tasks_and_opportunity_fields"
-down_revision = "005_order_margin_fields"
+down_revision = "005a_alembic_version_widen"
 branch_labels = None
 depends_on = None
 
