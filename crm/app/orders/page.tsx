@@ -25,20 +25,61 @@ import { useCrmAccess } from '@/lib/use-crm-access'
 import { getPublicOrderUrl } from '@/lib/public-site'
 import { AssignCleanerModal, type AssignOrderMinimal } from '@/components/assign-cleaner-modal'
 import { OrderStageSelect } from '@/components/order-stage-select'
+import { describeExtraServices } from '@/lib/order-extra-services'
+
+function formatDateTimeMsk(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso))
+  } catch {
+    return ''
+  }
+}
 
 interface CrmOrder {
   id: string
   order_number: string
+  customer_id: string
+  zone_id?: string | null
   address: string
+  address_lat?: string | null
+  address_lon?: string | null
+  apartment?: string | null
+  entrance?: string | null
+  floor?: number | null
+  intercom?: string | null
   cleaning_type: string
+  rooms_count: number
+  bathrooms_count: number
+  area_sqm?: string | null
+  has_pets?: boolean
+  has_balcony?: boolean
+  extra_services?: Record<string, unknown> | null
   scheduled_at: string
+  started_at?: string | null
+  completed_at?: string | null
+  base_price: string
+  extra_services_price: string
+  discount: string
   total_price: string
+  subscription_cleanings_tier?: number | null
+  package_purchase_id?: string | null
   status: string
   payment_status: string
+  payment_method?: string | null
+  payment_id?: string | null
   customer_phone?: string | null
   customer_email?: string | null
   special_instructions?: string | null
   created_at: string
+  updated_at?: string
   cleaner_id?: string | null
   cleaner_phone?: string | null
   cleaner_name?: string | null
@@ -96,6 +137,33 @@ const PAY_LABEL: Record<string, string> = {
   pending: 'Не оплачен',
   paid: 'Оплачен',
   refunded: 'Возврат',
+}
+
+const CLEANING_TYPE_LABEL: Record<string, string> = {
+  regular: 'Поддерживающая',
+  deep: 'Генеральная',
+  move_in: 'После ремонта',
+  move_out: 'Переезд',
+}
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  cash: 'Наличные при визите',
+  transfer: 'Банковский перевод',
+  package: 'Пакет уборок (предоплата)',
+}
+
+function rub(n: string | number | null | undefined): string {
+  if (n == null || n === '') return '—'
+  const v = typeof n === 'string' ? Number(n) : n
+  if (Number.isNaN(v)) return '—'
+  return `${Number(v).toLocaleString('ru-RU')} ₽`
+}
+
+function subscriptionHint(tier: number | null | undefined): string | null {
+  if (tier == null) return null
+  const pct = tier === 2 ? 5 : tier === 3 ? 8 : tier === 4 ? 10 : null
+  if (pct == null) return `Подписка: ${tier} уборок/мес`
+  return `Подписка: ${tier} уборок/мес · скидка −${pct}%`
 }
 
 const TASK_LABEL: Record<string, string> = {
@@ -178,7 +246,20 @@ export default function CrmOrdersPage() {
     const q = search.trim().toLowerCase()
     if (!q) return orders
     return orders.filter(o =>
-      [o.order_number, o.address, o.customer_phone, o.customer_email, o.cleaner_name, o.cleaner_phone]
+      [
+        o.order_number,
+        o.address,
+        o.customer_phone,
+        o.customer_email,
+        o.cleaner_name,
+        o.cleaner_phone,
+        o.cleaning_type,
+        o.customer_id,
+        o.zone_id,
+        o.payment_id,
+        o.subscription_cleanings_tier != null ? String(o.subscription_cleanings_tier) : '',
+        o.package_purchase_id,
+      ]
         .filter(Boolean).join(' ').toLowerCase().includes(q)
     )
   }, [orders, search])
@@ -332,7 +413,7 @@ export default function CrmOrdersPage() {
                 type="search"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Поиск по №, адресу, телефону…"
+                placeholder="Поиск: №, адрес, телефон, email, тип, зона, платёж…"
                 className="h-8 w-56 rounded-md border border-border bg-[#f5f6f8] pl-8 pr-3 text-xs focus:border-brand focus:outline-none"
               />
             </div>
@@ -363,7 +444,7 @@ export default function CrmOrdersPage() {
                   <th className="px-4 py-2.5">Статус</th>
                   <th className="px-3 py-2.5">Номер</th>
                   <th className="px-3 py-2.5">Визит</th>
-                  <th className="px-3 py-2.5">Адрес</th>
+                  <th className="px-3 py-2.5">Адрес / объект</th>
                   <th className="px-3 py-2.5">Клиент</th>
                   <th className="px-3 py-2.5">Клинер</th>
                   <th className="px-3 py-2.5 text-right">Сумма</th>
@@ -392,8 +473,13 @@ export default function CrmOrdersPage() {
                     <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
                       {format(new Date(o.scheduled_at), 'd MMM, HH:mm', { locale: ru })}
                     </td>
-                    <td className="max-w-[200px] px-3 py-2.5 text-xs">
-                      <span className="line-clamp-1">{o.address}</span>
+                    <td className="max-w-[220px] px-3 py-2.5 text-xs">
+                      <span className="line-clamp-2 font-medium text-foreground">{o.address}</span>
+                      <span className="mt-0.5 block line-clamp-1 text-[10px] text-muted-foreground">
+                        {CLEANING_TYPE_LABEL[o.cleaning_type] || o.cleaning_type}
+                        {o.area_sqm != null ? ` · ${Number(o.area_sqm)} м²` : ''}
+                        {o.rooms_count != null ? ` · ${o.rooms_count} комн.` : ''}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-xs">
                       {o.customer_phone
@@ -476,25 +562,117 @@ export default function CrmOrdersPage() {
             {/* Body */}
             <div className="flex min-h-0 flex-1 overflow-hidden">
               {/* Left sidebar */}
-              <div className="flex w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-[#fafbfc] p-4 text-sm">
+              <div className="flex w-[17.5rem] shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-[#fafbfc] p-4 text-sm">
                 <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Объект</p>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Адрес</p>
                   <div className="flex items-start gap-2">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="text-xs">{detail.address}</span>
+                    <span className="text-xs leading-snug">{detail.address}</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{detail.cleaning_type}</p>
+                  {(detail.apartment || detail.entrance || detail.floor != null || detail.intercom) && (
+                    <ul className="mt-2 space-y-0.5 pl-5 text-[11px] text-muted-foreground">
+                      {detail.apartment ? <li>кв. {detail.apartment}</li> : null}
+                      {detail.entrance ? <li>подъезд {detail.entrance}</li> : null}
+                      {detail.floor != null && detail.floor !== undefined ? <li>этаж {detail.floor}</li> : null}
+                      {detail.intercom ? <li>домофон {detail.intercom}</li> : null}
+                    </ul>
+                  )}
+                  {detail.address_lat != null && detail.address_lon != null && (
+                    <p className="mt-1.5 font-mono text-[10px] text-muted-foreground">
+                      {Number(detail.address_lat).toFixed(5)}, {Number(detail.address_lon).toFixed(5)}
+                    </p>
+                  )}
+                  {detail.zone_id && (
+                    <p className="mt-1 text-[10px] text-muted-foreground">Зона ID: {detail.zone_id}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Уборка</p>
+                  <p className="text-xs font-medium text-foreground">
+                    {CLEANING_TYPE_LABEL[detail.cleaning_type] || detail.cleaning_type}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Комнат: {detail.rooms_count ?? '—'} · Санузлов: {detail.bathrooms_count ?? '—'}
+                    {detail.area_sqm != null ? ` · ${Number(detail.area_sqm)} м²` : ''}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Животные: {detail.has_pets ? 'да' : 'нет'} · Балкон: {detail.has_balcony ? 'да' : 'нет'}
+                  </p>
+                  {(() => {
+                    const extraLines = describeExtraServices(detail.extra_services)
+                    if (extraLines.length > 0) {
+                      return (
+                        <ul className="mt-2 list-inside list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                          {extraLines.map((line, i) => (
+                            <li key={i}>{line}</li>
+                          ))}
+                        </ul>
+                      )
+                    }
+                    if (Number(detail.extra_services_price) > 0) {
+                      return (
+                        <p className="mt-2 text-[10px] italic text-muted-foreground">
+                          Доп. услуги оплачены по сумме, детальный список не сохранён (заказ создан до обновления).
+                        </p>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
+
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Сумма</p>
+                  <p className="text-xs">
+                    <span className="text-muted-foreground">База:</span>{' '}
+                    <span className="tabular-nums">{rub(detail.base_price)}</span>
+                  </p>
+                  <p className="text-xs">
+                    <span className="text-muted-foreground">Доп. услуги:</span>{' '}
+                    <span className="tabular-nums">{rub(detail.extra_services_price)}</span>
+                  </p>
+                  <p className="text-xs">
+                    <span className="text-muted-foreground">Скидка:</span>{' '}
+                    <span className="tabular-nums text-emerald-700">−{rub(detail.discount)}</span>
+                  </p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">Итого: {rub(detail.total_price)}</p>
+                  {subscriptionHint(detail.subscription_cleanings_tier) && (
+                    <p className="mt-1.5 rounded-md bg-violet-50 px-2 py-1 text-[10px] leading-snug text-violet-900">
+                      {subscriptionHint(detail.subscription_cleanings_tier)}
+                    </p>
+                  )}
+                  {detail.package_purchase_id && (
+                    <p className="mt-1 rounded-md bg-sky-50 px-2 py-1 text-[10px] text-sky-900">
+                      Списание с пакета · ID {detail.package_purchase_id}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Визит</p>
                   <p className="text-xs font-medium">{format(new Date(detail.scheduled_at), 'd MMMM yyyy', { locale: ru })}</p>
                   <p className="text-xs text-muted-foreground">{format(new Date(detail.scheduled_at), 'HH:mm', { locale: ru })}</p>
+                  {formatDateTimeMsk(detail.scheduled_at) && (
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      МСК: {formatDateTimeMsk(detail.scheduled_at)}
+                    </p>
+                  )}
+                  {detail.started_at && (
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Старт: {format(new Date(detail.started_at), 'd MMM, HH:mm', { locale: ru })}
+                    </p>
+                  )}
+                  {detail.completed_at && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Завершён: {format(new Date(detail.completed_at), 'd MMM, HH:mm', { locale: ru })}
+                    </p>
+                  )}
                 </div>
 
                 {(detail.customer_phone || detail.customer_email) && (
                   <div>
                     <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Клиент</p>
+                    <p className="mb-1 font-mono text-[10px] text-muted-foreground">ID {detail.customer_id}</p>
                     <div className="space-y-1.5">
                       {detail.customer_phone && (
                         <div className="flex items-center gap-2">
@@ -530,21 +708,32 @@ export default function CrmOrdersPage() {
 
                 <div>
                   <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Оплата</p>
-                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium',
+                  <span className={cn('inline-block rounded-full px-2 py-0.5 text-[10px] font-medium',
                     detail.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700',
                   )}>
                     {PAY_LABEL[detail.payment_status] || detail.payment_status}
                   </span>
+                  {detail.payment_method && (
+                    <p className="mt-1 text-[11px] text-foreground">
+                      {PAYMENT_METHOD_LABEL[detail.payment_method] || detail.payment_method}
+                    </p>
+                  )}
+                  {detail.payment_id && (
+                    <p className="mt-0.5 break-all font-mono text-[10px] text-muted-foreground">ЮKassa: {detail.payment_id}</p>
+                  )}
                 </div>
 
                 <div>
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Создан</p>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Создан / обновлён</p>
                   <p className="text-xs text-muted-foreground">{format(new Date(detail.created_at), 'd MMM yyyy, HH:mm', { locale: ru })}</p>
+                  {detail.updated_at && (
+                    <p className="text-xs text-muted-foreground">изм. {format(new Date(detail.updated_at), 'd MMM yyyy, HH:mm', { locale: ru })}</p>
+                  )}
                 </div>
 
                 {detail.special_instructions && (
                   <div>
-                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Инструкции</p>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Комментарий клиента</p>
                     <p className="whitespace-pre-wrap text-xs text-foreground">{detail.special_instructions}</p>
                   </div>
                 )}
@@ -734,8 +923,20 @@ export default function CrmOrdersPage() {
                         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Расчёт</p>
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Выручка</span>
-                            <span className="font-semibold tabular-nums">{Number(detail.total_price).toLocaleString('ru-RU')} ₽</span>
+                            <span className="text-muted-foreground">База</span>
+                            <span className="tabular-nums">{rub(detail.base_price)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Доп. услуги</span>
+                            <span className="tabular-nums">{rub(detail.extra_services_price)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Скидка</span>
+                            <span className="tabular-nums text-emerald-700">−{rub(detail.discount)}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-border pt-2 font-semibold">
+                            <span>Итого (выручка)</span>
+                            <span className="tabular-nums">{rub(detail.total_price)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Выплата клинеру</span>

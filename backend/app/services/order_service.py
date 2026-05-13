@@ -14,12 +14,36 @@ from app.models.user import User
 from app.models.zone import Zone
 from app.services.state_machine import OrderStateMachine, OrderStatus
 from app.services.pricing_service import PricingService
+from app.services.package_service import try_consume_package_for_order
+from app.services.subscription_service import compute_subscription_discount
 from app.services.notification_service import NotificationService
 from app.services.crm_opportunity_service import create_opportunity_from_order
 from app.core.pricing_constants import DEFAULT_CLEANER_PAYOUT_RATE
 from app.db.redis_client import redis_lock
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_extra_services_json(raw: object) -> dict | None:
+    """Только JSON-совместимые значения; пустой объект не храним."""
+    if raw is None or not isinstance(raw, dict):
+        return None
+    out: dict = {}
+    for key, val in raw.items():
+        k = str(key)
+        if isinstance(val, bool):
+            if val:
+                out[k] = True
+        elif isinstance(val, Decimal):
+            fv = float(val)
+            if fv != 0:
+                out[k] = fv
+        elif isinstance(val, (int, float)) and not isinstance(val, bool):
+            if val != 0:
+                out[k] = val
+        elif isinstance(val, str) and val.strip():
+            out[k] = val.strip()
+    return out or None
 
 
 class OrderService:
@@ -122,7 +146,30 @@ class OrderService:
         )
 
         total = price_info["total_price"]
-        payout = (total * DEFAULT_CLEANER_PAYOUT_RATE).quantize(Decimal("0.01"))
+        nominal_total = total.quantize(Decimal("0.01"))
+        payout = (nominal_total * DEFAULT_CLEANER_PAYOUT_RATE).quantize(Decimal("0.01"))
+
+        discount_pkg, total_after_pkg, pkg_id = try_consume_package_for_order(db, customer_id, total)
+        subscription_tier = None
+        if pkg_id:
+            discount_amt = discount_pkg
+            total_after = total_after_pkg
+        else:
+            sub_res = compute_subscription_discount(
+                db, customer_id, order_data["scheduled_at"], total
+            )
+            subscription_tier = sub_res.tier
+            discount_amt = sub_res.discount_amount
+            total_after = (total - sub_res.discount_amount).quantize(Decimal("0.01"))
+            if total_after < 0:
+                total_after = Decimal("0")
+
+        if pkg_id:
+            pay_status = "paid"
+            pay_method = "package"
+        else:
+            pay_status = "pending"
+            pay_method = order_data.get("payment_method")
 
         # Create order
         order = Order(
@@ -142,15 +189,19 @@ class OrderService:
             area_sqm=order_data.get("area_sqm"),
             has_pets=order_data.get("has_pets", False),
             has_balcony=order_data.get("has_balcony", False),
+            extra_services=_coerce_extra_services_json(order_data.get("extra_services")),
             special_instructions=order_data.get("special_instructions"),
             scheduled_at=order_data["scheduled_at"],
             base_price=price_info["base_price"],
             extra_services_price=price_info.get("extra_services_price", 0),
-            discount=price_info.get("discount", 0),
-            total_price=total,
+            discount=discount_amt,
+            total_price=total_after,
+            subscription_cleanings_tier=subscription_tier,
+            package_purchase_id=pkg_id,
             cleaner_payout=payout,
             status=OrderStatus.PENDING.value,
-            payment_method=order_data.get("payment_method"),
+            payment_method=pay_method,
+            payment_status=pay_status,
         )
 
         db.add(order)
